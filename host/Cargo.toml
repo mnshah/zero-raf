@@ -1,9 +1,12 @@
 [package]
-name = "starter"
+name = "zero-raf-host"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 methods = { path = "../methods" }
-risc0-zkvm = "0.12"
+csv = "1.1"
 serde = "1.0"
+regex = "1.6.0"
+risc0-zkvm = "0.13"
+zero-raf-core = { path = "../core" }

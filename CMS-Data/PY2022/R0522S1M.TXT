@@ -1,0 +1,672 @@
+ %MACRO R0522S1M(INP=, IND=, OUTDATA=, IDVAR=, KEEPVAR=, 
+                 SEDITS=, DATE_ASOF=, 
+                 FMNAME0=012205Y21Y22QC,  
+                 AGEFMT0=IAGEHYBCY21MCE, SEXFMT0=ISEXHYBCY21MCE, DF=1,    
+                 AGESEXMAC=AGESEXV4,  
+                 EDITMAC0=R05I0ED3, LABELMAC=R05X76L1, 
+                 HIERMAC=R05X76H1, SCOREMAC=SCOREVAR);
+
+ %**********************************************************************
+ * R0522S1M creates RXHCC and score variables for each person present
+ * in the user-provided PERSON file.
+ * If a person has at least one diagnosis in user-provided DIAG file 
+ * then RXHCCs are created, otherwise RXHCCs are set to 0.
+ * Score variables are created using coefficients from 8 final models:
+ * 5 continuing enrollee and 3 new enrollee models.
+ *
+ * Assumptions about input files:
+ *   - both files are sorted by person ID
+ *   - person level file has the following variables:
+ *     :&IDVAR  - person ID variable (it is a macro parameter)
+ *     :DOB     - date of birth
+ *     :SEX     - sex
+ *     :OREC    - original reason for entitlement
+ *     :ESRD    - end stage renal disease 
+ *     
+ *   - diagnosis level file has the following vars:
+ *     :&IDVAR  - person ID variable (it is a macro parameter)
+ *     :DIAG    - diagnosis
+ *
+ * Parameters:
+ *     INP       - input person dataset
+ *     IND       - input diagnosis dataset
+ *     OUTDATA   - output dataset
+ *     IDVAR     - name of person id variable (MBI for medicare data)
+ *     KEEPVAR   - variables kept in the output dataset
+ *     SEDITS    - a switch that controls whether to perform MCE edits 
+ *                 on ICD10: 1-YES, 0-NO
+ *     DATE_ASOF - SAS date for age calculation (Feb 1 of payment year)
+ *     FMNAME0   - format name (crosswalk ICD10 to V05 RxCCs)
+ *     AGEFMT0   - format name (crosswalk ICD10 to acceptable age range
+ *                 in case MCE edits on diags are to be performed)
+ *     SEXFMT0   - format name (crosswalk ICD10 to acceptable sex in 
+ *                 case MCE edits on diags are to be performed)
+ *     DF        - factor set by CMS to scale coefficients if required
+ *                 (1 = no adjustment made)
+ *     AGESEXMAC - external macro name: create age/sex and 
+ *                 originally disabled variables
+ *     EDITMAC0  - external macro name: perform edits to ICD10
+ *     LABELMAC  - external macro name: assign labels to RXHCCs
+ *     HIERMAC   - external macro name: set RXHCC=0 according to
+ *                 hierarchies
+ *     SCOREMAC  - external macro name: calculate a score variable
+ *
+ * External macros:
+ *     %AGESEXV4    - create age/sex, originally disabled and nonaged 
+ *                    variables
+ *     %R05I0ED3    - perform edits to ICD10 diagnosis
+ *     %R05X76L1    - assign labels to RXHCCs
+ *     %R05X76H1    - set RXHCC=0 according to hierarchies
+ *     %SCOREVAR    - calculate a score variable
+ *
+ **********************************************************************;
+
+ **********************************************************************;
+ * step1: include external macros;
+ **********************************************************************;
+
+ %IF "&AGESEXMAC" ne "" %THEN %DO;
+     %INCLUDE IN0(&AGESEXMAC) /SOURCE2; %* create demographic variables;
+ %END;
+ %IF "&EDITMAC0" ne "" %THEN %DO;
+     %INCLUDE IN0(&EDITMAC0)   /SOURCE2; %* perform edits on ICD10;
+ %END;
+ %IF "&LABELMAC" ne "" %THEN %DO;
+     %INCLUDE IN0(&LABELMAC)  /SOURCE2; %* RXHCC labels;
+ %END;
+ %IF "&HIERMAC" ne "" %THEN %DO;
+     %INCLUDE IN0(&HIERMAC)   /SOURCE2; %* hierarchies;
+ %END;
+ %IF "&SCOREMAC" ne "" %THEN %DO;
+     %INCLUDE IN0(&SCOREMAC)  /SOURCE2; %* calculate score variable;
+ %END;
+
+ **********************************************************************;
+ * step2: define internal macro variables; 
+ **********************************************************************;
+
+ %LET RxHCClist=&RXHCCV5_list76;
+ %LET RxCClist=&RXCCV5_list76;
+ %LET N_RX=%sysfunc(countw(&RXHCClist));    
+ %PUT "number of CCs in the main program list: " &N_RX;                                                                           
+ %PUT  "RXCC  list: "  &RXCClist;                                     
+	
+ %* macro to find RXCC number in array of RXCCs;                         
+ %MACRO FIND;                                                                                                                                  
+     %LET J=1;                                                                                                                          
+     %DO %UNTIL(IND=0 OR &J > &N_RX);                                                                                                          
+         IF RRR="%SCAN(&RXCClist,&J)"  THEN IND=&J;                                                                                    
+         %LET J=%EVAL(&J+1);                                                                                                            
+     %END;                                                                                                                                 
+ %MEND FIND;        
+  
+
+ 
+ %* 10 NOT AGED continuing enrollee age/sex variables;
+ %let NOAGEDAGESEXVARS=%str(
+  F0_34  F35_44 F45_54 F55_59 F60_64 
+  M0_34  M35_44 M45_54 M55_59 M60_64 
+ );
+
+ %* 14 AGED continuing enrollee age/sex variables;
+ %let AGEDAGESEXVARS=%str(
+  F65_69 F70_74 F75_79 F80_84 F85_89 F90_94 F95_GT
+  M65_69 M70_74 M75_79 M80_84 M85_89 M90_94 M95_GT
+ );
+ 
+ %* 12 interactions with NonAged for Institutional continuing enrollees;
+ %let INTERACTVARS=%str(
+  NonAged_RXHCC1    NonAged_RXHCC130   NonAged_RXHCC131 
+  NonAged_RXHCC132  NonAged_RXHCC133   NonAged_RXHCC134 
+  NonAged_RXHCC135  NonAged_RXHCC145   NonAged_RXHCC160 
+  NonAged_RXHCC163  NonAged_RXHCC164   NonAged_RXHCC165 
+ );
+
+ %* 108 ORIGDS x ESRD x age/sex variables for New Enrollees;
+ %let NE_INTERACTVARS=%str(
+  NESRD_NOD_x_F0_34
+  NESRD_NOD_x_F35_44
+  NESRD_NOD_x_F45_54
+  NESRD_NOD_x_F55_59
+  NESRD_NOD_x_F60_64
+  NESRD_NOD_x_F65
+  NESRD_NOD_x_F66
+  NESRD_NOD_x_F67
+  NESRD_NOD_x_F68
+  NESRD_NOD_x_F69
+  NESRD_NOD_x_F70_74
+  NESRD_NOD_x_F75_79
+  NESRD_NOD_x_F80_84
+  NESRD_NOD_x_F85_89
+  NESRD_NOD_x_F90_94
+  NESRD_NOD_x_F95_GT
+  
+  NESRD_NOD_x_M0_34
+  NESRD_NOD_x_M35_44
+  NESRD_NOD_x_M45_54
+  NESRD_NOD_x_M55_59
+  NESRD_NOD_x_M60_64
+  NESRD_NOD_x_M65
+  NESRD_NOD_x_M66
+  NESRD_NOD_x_M67
+  NESRD_NOD_x_M68
+  NESRD_NOD_x_M69
+  NESRD_NOD_x_M70_74
+  NESRD_NOD_x_M75_79
+  NESRD_NOD_x_M80_84
+  NESRD_NOD_x_M85_89
+  NESRD_NOD_x_M90_94
+  NESRD_NOD_x_M95_GT
+  
+  ESRD_NOD_x_F0_34
+  ESRD_NOD_x_F35_44
+  ESRD_NOD_x_F45_54
+  ESRD_NOD_x_F55_59
+  ESRD_NOD_x_F60_64
+  ESRD_NOD_x_F65
+  ESRD_NOD_x_F66
+  ESRD_NOD_x_F67
+  ESRD_NOD_x_F68
+  ESRD_NOD_x_F69
+  ESRD_NOD_x_F70_74
+  ESRD_NOD_x_F75_79
+  ESRD_NOD_x_F80_84
+  ESRD_NOD_x_F85_89
+  ESRD_NOD_x_F90_94
+  ESRD_NOD_x_F95_GT
+  
+  ESRD_NOD_x_M0_34
+  ESRD_NOD_x_M35_44
+  ESRD_NOD_x_M45_54
+  ESRD_NOD_x_M55_59
+  ESRD_NOD_x_M60_64
+  ESRD_NOD_x_M65
+  ESRD_NOD_x_M66
+  ESRD_NOD_x_M67
+  ESRD_NOD_x_M68
+  ESRD_NOD_x_M69
+  ESRD_NOD_x_M70_74
+  ESRD_NOD_x_M75_79
+  ESRD_NOD_x_M80_84
+  ESRD_NOD_x_M85_89
+  ESRD_NOD_x_M90_94
+  ESRD_NOD_x_M95_GT
+  
+  NESRD_OD_x_F65
+  NESRD_OD_x_F66
+  NESRD_OD_x_F67
+  NESRD_OD_x_F68
+  NESRD_OD_x_F69
+  NESRD_OD_x_F70_74
+  NESRD_OD_x_F75_79
+  NESRD_OD_x_F80_84
+  NESRD_OD_x_F85_89
+  NESRD_OD_x_F90_94
+  NESRD_OD_x_F95_GT
+  
+  NESRD_OD_x_M65
+  NESRD_OD_x_M66
+  NESRD_OD_x_M67
+  NESRD_OD_x_M68
+  NESRD_OD_x_M69
+  NESRD_OD_x_M70_74
+  NESRD_OD_x_M75_79
+  NESRD_OD_x_M80_84
+  NESRD_OD_x_M85_89
+  NESRD_OD_x_M90_94
+  NESRD_OD_x_M95_GT
+  
+  ESRD_OD_x_F65
+  ESRD_OD_x_F66
+  ESRD_OD_x_F67
+  ESRD_OD_x_F68
+  ESRD_OD_x_F69
+  ESRD_OD_x_F70_74
+  ESRD_OD_x_F75_79
+  ESRD_OD_x_F80_84
+  ESRD_OD_x_F85_89
+  ESRD_OD_x_F90_94
+  ESRD_OD_x_F95_GT
+  
+  ESRD_OD_x_M65
+  ESRD_OD_x_M66
+  ESRD_OD_x_M67
+  ESRD_OD_x_M68
+  ESRD_OD_x_M69
+  ESRD_OD_x_M70_74
+  ESRD_OD_x_M75_79
+  ESRD_OD_x_M80_84
+  ESRD_OD_x_M85_89
+  ESRD_OD_x_M90_94
+  ESRD_OD_x_M95_GT
+ );
+
+
+ %* 8 model variables lists;
+ %* (1) Continuing Enrollee Non-Low Income Aged;
+ %let MODEL1VARS=%str(
+  &AGEDAGESEXVARS
+  F65OD
+  M65OD
+  &RXHCCV5_list76
+ );
+  
+ %* (2) Continuing Enrollee Non-Low Income Non-Aged;
+ %let MODEL2VARS=%str(
+  &NOAGEDAGESEXVARS
+  &RXHCCV5_list76
+ );
+
+ %* (3) Continuing Enrollee Low Income Aged;
+ %let MODEL3VARS=%str(
+  &AGEDAGESEXVARS
+  F65OD
+  M65OD
+  &RXHCCV5_list76
+ );
+  
+ %* (4) Continuing Enrollee Low Income Non-Aged;
+ %let MODEL4VARS=%str(
+  &NOAGEDAGESEXVARS
+  &RXHCCV5_list76
+ );
+
+ %* (5) Continuing Enrollee Institutional with Non-Aged Interactions;
+ %let MODEL5VARS=%str(
+  &AGESEXVARS
+  ORIGDS
+  &RXHCCV5_list76
+  &INTERACTVARS
+ );
+  
+ %* (6) New Enrollee Community Non-Low Income;
+ %let MODEL6VARS=%str(
+  &NE_INTERACTVARS
+ );
+
+ %* (7) New Enrollee Community Low Income; 
+ %let MODEL7VARS=%str(
+  &NE_INTERACTVARS
+ );
+
+ %* (8) New Enrollee Institutional; 
+ %let MODEL8VARS=%str(
+  &NE_INTERACTVARS
+ );
+ 
+
+ **********************************************************************;
+ * step3: merge person and diagnosis files outputting one record
+ *        per person with score and RXHCC variables for each input 
+ *        person level record
+ **********************************************************************;
+
+ DATA &OUTDATA(KEEP=&IDVAR &KEEPVAR);
+    ****************************************************;
+    * step3.1: declaration section;
+    ****************************************************;
+
+    %IF "&LABELMAC" ne "" %THEN %&LABELMAC;   %*RXHCC labels;
+
+    %*length of new variables;
+    LENGTH RXCC $4. AGEF 3. RRR $8.
+           &RXCClist
+           &RXHCClist
+           &INTERACTVARS 
+           NESRD_NORIGDIS
+           NESRD_ORIGDIS 
+           ESRD_NORIGDIS 
+           ESRD_ORIGDIS  
+           &NE_INTERACTVARS 3.;
+
+    %*retain cc & age vars;
+    RETAIN &RXCClist 0  AGEF
+           ;
+    %*arrays;
+    ARRAY R(&N_RX)  &RXCClist;                
+    ARRAY RX(&N_RX) &RXHCClist;             
+	
+    %*interaction vars;
+    ARRAY RV &INTERACTVARS;
+    ARRAY NEIN &NE_INTERACTVARS;
+    %*array of age/sex cells for new enrollee models;
+    ARRAY NEAS(32) &NEAGESEXVARS;
+
+    ****************************************************;
+    * step3.2: to bring in regression coefficients;
+    ****************************************************;
+    IF _N_ = 1 THEN SET INCOEF.RXCOEFF;
+   
+    ****************************************************;
+    * step3.3: merge
+    ****************************************************;
+    MERGE &INP(IN=IN1)
+          &IND(IN=IN2) END=EOF;
+    BY &IDVAR;
+
+    IF IN1 THEN DO;
+
+    ********************************************************;
+    * step3.4: for the first record for a person set RXCC to 0
+    *          and calculate age
+    ********************************************************;
+
+       IF FIRST.&IDVAR THEN DO;
+           %*set RXCCs to 0;
+           DO I=1 TO &N_RX;                 
+            R(I)=0;
+           END;
+		   
+           %* age;
+           AGEF =FLOOR((INTCK(
+                'MONTH',DOB,&DATE_ASOF)-(DAY(&DATE_ASOF)<DAY(DOB)))/12);
+           IF AGEF=64 & OREC='0' THEN AGEF=65;
+           IF AGEF<0 THEN AGEF=0;
+       END;
+
+    ****************************************************;
+    * step3.5 if there are any diagnoses for a person
+    *         then do the following:
+    *         - perform diag edits using macro &EDITMAC0
+    *         - create RxCC using corresponding formats for ICD10
+    *         - assign additional RxCC using provided additional formats
+    ****************************************************;
+       IF IN1 & IN2 THEN DO;
+          %*initialize;
+          RxCC="9999";
+
+             %IF "&EDITMAC0" NE "" %THEN 
+                   %&EDITMAC0(AGE=AGEF,SEX=SEX,ICD10=DIAG); 
+             IF RxCC NE "-1.0" AND RxCC NE "9999" THEN DO;
+                RRR="RXCC" !! LEFT(PUT(RXCC, 4.));	                      
+                %*find number in array of CCs for variable RXCC;            
+                %FIND;                                				
+                IF 1 <= IND <= &N_RX THEN R(IND)=1;
+             END;
+             ELSE IF RxCC="9999" THEN DO;
+                ** primary assignment **;
+                RRR="RXCC" !! LEFT(PUT(LEFT(PUT(DIAG,$IAS1&FMNAME0..)), 4.)); 
+                %*find number in array of CCs for variable RXCC;            
+                %FIND;                                				
+                IF 1 <= IND <= &N_RX THEN R(IND)=1;
+                ** duplicate assignment **;
+                RRR="RXCC" !! LEFT(PUT(LEFT(PUT(DIAG,$IAS2&FMNAME0..)), 4.));	
+                %*find number in array of CCs for variable RXCC;            
+                %FIND;                                				
+                IF 1 <= IND <= &N_RX THEN R(IND)=1;
+             END;
+
+       END; %*RXCC creation;
+	   
+			 
+     
+    **************************************************************;
+    * step3.6 for the last record for a person do the
+    *         following:
+    *         - create demographic variables needed (macro &AGESEXMAC)
+    *         - create RXHCC using hierarchies (macro &HIERMAC)
+    *         - create interaction variables
+    *         - set RXHCCs and interaction variables to zero if there
+    *           are no diagnoses for a person
+    *         - create scores for 5 continuing enrollee models
+    *         - create scores for 3 new enrollee models
+    **************************************************************;
+       IF LAST.&IDVAR THEN DO;
+
+          *****************************;
+          * demographic vars           ;
+          *****************************;
+          %*create age/sex cells and originally disabled variables;
+          %IF "&AGESEXMAC" ne "" %THEN
+          %&AGESEXMAC(AGEF=AGEF, SEX=SEX, OREC=OREC); 
+          %* Originally disabled males/females in aged
+          continuing enrollee models;
+          F65OD = ORIGDS*(SEX='2'); 
+          M65OD = ORIGDS*(SEX='1');
+          %* Originally disabled interactions with ESRD needed for
+          new enrollee models;
+          NESRD_NORIGDIS = 0;
+          NESRD_ORIGDIS  = 0;  
+          ESRD_NORIGDIS  = 0;  
+          ESRD_ORIGDIS   = 0;   
+          if      ESRD=0 and ORIGDS=0 then NESRD_NORIGDIS = 1;
+          else if ESRD=0 and ORIGDS=1 then NESRD_ORIGDIS  = 1;
+          else if ESRD=1 and ORIGDS=0 then ESRD_NORIGDIS  = 1;
+          else if ESRD=1 and ORIGDS=1 then ESRD_ORIGDIS   = 1;
+
+          do over NEIN; 
+             NEIN=0; 
+          end;
+
+          NESRD_NOD_x_F0_34  = NESRD_NORIGDIS * NEF0_34 ;
+          NESRD_NOD_x_F35_44 = NESRD_NORIGDIS * NEF35_44;
+          NESRD_NOD_x_F45_54 = NESRD_NORIGDIS * NEF45_54;
+          NESRD_NOD_x_F55_59 = NESRD_NORIGDIS * NEF55_59;
+          NESRD_NOD_x_F60_64 = NESRD_NORIGDIS * NEF60_64;
+          NESRD_NOD_x_F65    = NESRD_NORIGDIS * NEF65   ;
+          NESRD_NOD_x_F66    = NESRD_NORIGDIS * NEF66   ;
+          NESRD_NOD_x_F67    = NESRD_NORIGDIS * NEF67   ;
+          NESRD_NOD_x_F68    = NESRD_NORIGDIS * NEF68   ;
+          NESRD_NOD_x_F69    = NESRD_NORIGDIS * NEF69   ;
+          NESRD_NOD_x_F70_74 = NESRD_NORIGDIS * NEF70_74;
+          NESRD_NOD_x_F75_79 = NESRD_NORIGDIS * NEF75_79;
+          NESRD_NOD_x_F80_84 = NESRD_NORIGDIS * NEF80_84;
+          NESRD_NOD_x_F85_89 = NESRD_NORIGDIS * NEF85_89;
+          NESRD_NOD_x_F90_94 = NESRD_NORIGDIS * NEF90_94;
+          NESRD_NOD_x_F95_GT = NESRD_NORIGDIS * NEF95_GT;
+         
+          NESRD_NOD_x_M0_34  = NESRD_NORIGDIS * NEM0_34 ;
+          NESRD_NOD_x_M35_44 = NESRD_NORIGDIS * NEM35_44;
+          NESRD_NOD_x_M45_54 = NESRD_NORIGDIS * NEM45_54;
+          NESRD_NOD_x_M55_59 = NESRD_NORIGDIS * NEM55_59;
+          NESRD_NOD_x_M60_64 = NESRD_NORIGDIS * NEM60_64;
+          NESRD_NOD_x_M65    = NESRD_NORIGDIS * NEM65   ;
+          NESRD_NOD_x_M66    = NESRD_NORIGDIS * NEM66   ;
+          NESRD_NOD_x_M67    = NESRD_NORIGDIS * NEM67   ;
+          NESRD_NOD_x_M68    = NESRD_NORIGDIS * NEM68   ;
+          NESRD_NOD_x_M69    = NESRD_NORIGDIS * NEM69   ;
+          NESRD_NOD_x_M70_74 = NESRD_NORIGDIS * NEM70_74;
+          NESRD_NOD_x_M75_79 = NESRD_NORIGDIS * NEM75_79;
+          NESRD_NOD_x_M80_84 = NESRD_NORIGDIS * NEM80_84;
+          NESRD_NOD_x_M85_89 = NESRD_NORIGDIS * NEM85_89;
+          NESRD_NOD_x_M90_94 = NESRD_NORIGDIS * NEM90_94;
+          NESRD_NOD_x_M95_GT = NESRD_NORIGDIS * NEM95_GT;
+         
+          NESRD_OD_x_F65     = NESRD_ORIGDIS * NEF65   ;
+          NESRD_OD_x_F66     = NESRD_ORIGDIS * NEF66   ;
+          NESRD_OD_x_F67     = NESRD_ORIGDIS * NEF67   ;
+          NESRD_OD_x_F68     = NESRD_ORIGDIS * NEF68   ;
+          NESRD_OD_x_F69     = NESRD_ORIGDIS * NEF69   ;
+          NESRD_OD_x_F70_74  = NESRD_ORIGDIS * NEF70_74;
+          NESRD_OD_x_F75_79  = NESRD_ORIGDIS * NEF75_79;
+          NESRD_OD_x_F80_84  = NESRD_ORIGDIS * NEF80_84;
+          NESRD_OD_x_F85_89  = NESRD_ORIGDIS * NEF85_89;
+          NESRD_OD_x_F90_94  = NESRD_ORIGDIS * NEF90_94;
+          NESRD_OD_x_F95_GT  = NESRD_ORIGDIS * NEF95_GT;
+         
+          NESRD_OD_x_M65     = NESRD_ORIGDIS * NEM65   ;
+          NESRD_OD_x_M66     = NESRD_ORIGDIS * NEM66   ;
+          NESRD_OD_x_M67     = NESRD_ORIGDIS * NEM67   ;
+          NESRD_OD_x_M68     = NESRD_ORIGDIS * NEM68   ;
+          NESRD_OD_x_M69     = NESRD_ORIGDIS * NEM69   ;
+          NESRD_OD_x_M70_74  = NESRD_ORIGDIS * NEM70_74;
+          NESRD_OD_x_M75_79  = NESRD_ORIGDIS * NEM75_79;
+          NESRD_OD_x_M80_84  = NESRD_ORIGDIS * NEM80_84;
+          NESRD_OD_x_M85_89  = NESRD_ORIGDIS * NEM85_89;
+          NESRD_OD_x_M90_94  = NESRD_ORIGDIS * NEM90_94;
+          NESRD_OD_x_M95_GT  = NESRD_ORIGDIS * NEM95_GT;
+         
+          ESRD_NOD_x_F0_34   = ESRD_NORIGDIS * NEF0_34 ;
+          ESRD_NOD_x_F35_44  = ESRD_NORIGDIS * NEF35_44;
+          ESRD_NOD_x_F45_54  = ESRD_NORIGDIS * NEF45_54;
+          ESRD_NOD_x_F55_59  = ESRD_NORIGDIS * NEF55_59;
+          ESRD_NOD_x_F60_64  = ESRD_NORIGDIS * NEF60_64;
+          ESRD_NOD_x_F65     = ESRD_NORIGDIS * NEF65   ;
+          ESRD_NOD_x_F66     = ESRD_NORIGDIS * NEF66   ;
+          ESRD_NOD_x_F67     = ESRD_NORIGDIS * NEF67   ;
+          ESRD_NOD_x_F68     = ESRD_NORIGDIS * NEF68   ;
+          ESRD_NOD_x_F69     = ESRD_NORIGDIS * NEF69   ;
+          ESRD_NOD_x_F70_74  = ESRD_NORIGDIS * NEF70_74;
+          ESRD_NOD_x_F75_79  = ESRD_NORIGDIS * NEF75_79;
+          ESRD_NOD_x_F80_84  = ESRD_NORIGDIS * NEF80_84;
+          ESRD_NOD_x_F85_89  = ESRD_NORIGDIS * NEF85_89;
+          ESRD_NOD_x_F90_94  = ESRD_NORIGDIS * NEF90_94;
+          ESRD_NOD_x_F95_GT  = ESRD_NORIGDIS * NEF95_GT;
+         
+          ESRD_NOD_x_M0_34   = ESRD_NORIGDIS * NEM0_34 ;
+          ESRD_NOD_x_M35_44  = ESRD_NORIGDIS * NEM35_44;
+          ESRD_NOD_x_M45_54  = ESRD_NORIGDIS * NEM45_54;
+          ESRD_NOD_x_M55_59  = ESRD_NORIGDIS * NEM55_59;
+          ESRD_NOD_x_M60_64  = ESRD_NORIGDIS * NEM60_64;
+          ESRD_NOD_x_M65     = ESRD_NORIGDIS * NEM65   ;
+          ESRD_NOD_x_M66     = ESRD_NORIGDIS * NEM66   ;
+          ESRD_NOD_x_M67     = ESRD_NORIGDIS * NEM67   ;
+          ESRD_NOD_x_M68     = ESRD_NORIGDIS * NEM68   ;
+          ESRD_NOD_x_M69     = ESRD_NORIGDIS * NEM69   ;
+          ESRD_NOD_x_M70_74  = ESRD_NORIGDIS * NEM70_74;
+          ESRD_NOD_x_M75_79  = ESRD_NORIGDIS * NEM75_79;
+          ESRD_NOD_x_M80_84  = ESRD_NORIGDIS * NEM80_84;
+          ESRD_NOD_x_M85_89  = ESRD_NORIGDIS * NEM85_89;
+          ESRD_NOD_x_M90_94  = ESRD_NORIGDIS * NEM90_94;
+          ESRD_NOD_x_M95_GT  = ESRD_NORIGDIS * NEM95_GT;
+         
+          ESRD_OD_x_F65      = ESRD_ORIGDIS * NEF65   ;
+          ESRD_OD_x_F66      = ESRD_ORIGDIS * NEF66   ;
+          ESRD_OD_x_F67      = ESRD_ORIGDIS * NEF67   ;
+          ESRD_OD_x_F68      = ESRD_ORIGDIS * NEF68   ;
+          ESRD_OD_x_F69      = ESRD_ORIGDIS * NEF69   ;
+          ESRD_OD_x_F70_74   = ESRD_ORIGDIS * NEF70_74;
+          ESRD_OD_x_F75_79   = ESRD_ORIGDIS * NEF75_79;
+          ESRD_OD_x_F80_84   = ESRD_ORIGDIS * NEF80_84;
+          ESRD_OD_x_F85_89   = ESRD_ORIGDIS * NEF85_89;
+          ESRD_OD_x_F90_94   = ESRD_ORIGDIS * NEF90_94;
+          ESRD_OD_x_F95_GT   = ESRD_ORIGDIS * NEF95_GT;
+         
+          ESRD_OD_x_M65      = ESRD_ORIGDIS * NEM65   ;
+          ESRD_OD_x_M66      = ESRD_ORIGDIS * NEM66   ;
+          ESRD_OD_x_M67      = ESRD_ORIGDIS * NEM67   ;
+          ESRD_OD_x_M68      = ESRD_ORIGDIS * NEM68   ;
+          ESRD_OD_x_M69      = ESRD_ORIGDIS * NEM69   ;
+          ESRD_OD_x_M70_74   = ESRD_ORIGDIS * NEM70_74;
+          ESRD_OD_x_M75_79   = ESRD_ORIGDIS * NEM75_79;
+          ESRD_OD_x_M80_84   = ESRD_ORIGDIS * NEM80_84;
+          ESRD_OD_x_M85_89   = ESRD_ORIGDIS * NEM85_89;
+          ESRD_OD_x_M90_94   = ESRD_ORIGDIS * NEM90_94;
+          ESRD_OD_x_M95_GT   = ESRD_ORIGDIS * NEM95_GT;
+         
+
+          IF IN1 & IN2 THEN DO;
+              **********************;
+              * hierarchies;
+              **********************;
+              %IF "&HIERMAC" ne "" %THEN %&HIERMAC;
+              *****************************;
+              * other interaction variables;
+              *****************************;
+   
+          %*interactions with NonAged ;
+              NonAged_RXHCC1    = NonAged*RXHCC1;
+              NonAged_RXHCC130  = NonAged*RXHCC130;
+              NonAged_RXHCC131  = NonAged*RXHCC131;
+              NonAged_RXHCC132  = NonAged*RXHCC132;
+              NonAged_RXHCC133  = NonAged*RXHCC133;
+              NonAged_RXHCC134  = NonAged*RXHCC134;
+              NonAged_RXHCC135  = NonAged*RXHCC135;
+              NonAged_RXHCC145  = NonAged*RXHCC145;
+              NonAged_RXHCC160  = NonAged*RXHCC160;
+              NonAged_RXHCC163  = NonAged*RXHCC163;
+              NonAged_RXHCC164  = NonAged*RXHCC164;
+              NonAged_RXHCC165  = NonAged*RXHCC165;
+              
+          END; %*there are some diagnoses for a person;
+          ELSE DO;
+              DO I=1 TO &N_RX;                               
+	         RX(I)=0;
+              END;
+              DO OVER RV;
+                 RV=0;
+              END;
+          END;
+
+          %*score calculation;
+
+          /******************************/
+          /* continuing enrollee models */
+          /******************************/;
+          %IF "&SCOREMAC" ne "" %THEN %DO;
+          %* (1) Continuing Enrollee Non-Low Income Aged;
+          %&SCOREMAC(PVAR=SCORE_CE_NoLowAged, 
+                     RLIST=&MODEL1VARS, 
+                     CPREF=Rx_CE_NoLowAged_);
+
+          %* (2) Continuing Enrollee Non-Low Income Non-Aged;
+          %&SCOREMAC(PVAR=SCORE_CE_NoLowNoAged, 
+                     RLIST=&MODEL2VARS, 
+                     CPREF=Rx_CE_NoLowNoAged_);
+
+          %* (3) Continuing Enrollee Low Income Aged;
+          %&SCOREMAC(PVAR=SCORE_CE_LowAged, 
+                     RLIST=&MODEL3VARS, 
+                     CPREF=Rx_CE_LowAged_);
+
+          %* (4) Continuing Enrollee Low Income Non-Aged;
+          %&SCOREMAC(PVAR=SCORE_CE_LowNoAged, 
+                     RLIST=&MODEL4VARS, 
+                     CPREF=Rx_CE_LowNoAged_);
+
+          %* (5) Continuing Enrollee Institutional with 
+                 Non-Aged Interactions;
+          %&SCOREMAC(PVAR=SCORE_CE_LTI, 
+                     RLIST=&MODEL5VARS, 
+                     CPREF=Rx_CE_LTI_);
+
+          /**************************/
+          /*   new enrollees models */
+          /**************************/;
+
+          %* (6) New Enrollee Community Non-Low Income;
+          %&SCOREMAC(PVAR=SCORE_NE_NonLowCommunity, 
+                     RLIST=&MODEL6VARS, 
+                     CPREF=Rx_NE_NoLo_);
+
+          %* (7) New Enrollee Community Low Income; 
+          %&SCOREMAC(PVAR=SCORE_NE_LowCommunity, 
+                     RLIST=&MODEL7VARS, 
+                     CPREF=Rx_NE_Lo_);
+
+          %* (8) New Enrollee Institutional; 
+          %&SCOREMAC(PVAR=SCORE_NE_LTI, 
+                     RLIST=&MODEL8VARS, 
+                     CPREF=Rx_NE_LTI_);
+		  
+          %END;
+
+          /****************************/
+          /*   normalize the scores   */
+          /***************************/;
+          
+          SCORE_CE_NoLowAged          =    SCORE_CE_NoLowAged          *&DF;
+          SCORE_CE_NoLowNoAged        =    SCORE_CE_NoLowNoAged        *&DF;
+          SCORE_CE_LowAged            =    SCORE_CE_LowAged            *&DF;
+          SCORE_CE_LowNoAged          =    SCORE_CE_LowNoAged          *&DF;
+          SCORE_CE_LTI                =    SCORE_CE_LTI                *&DF;
+          SCORE_NE_NonLowCommunity    =    SCORE_NE_NonLowCommunity    *&DF;
+          SCORE_NE_LowCommunity       =    SCORE_NE_LowCommunity       *&DF;
+          SCORE_NE_LTI                =    SCORE_NE_LTI                *&DF;                                                                      
+          
+
+          OUTPUT &OUTDATA;
+       END; %*last record for a person;
+     END; %*there is a person record;
+ RUN;
+
+  **********************************************************************;
+ * step4: data checks and proc contents
+ **********************************************************************;
+ PROC PRINT U DATA=&OUTDATA(OBS=46);
+     TITLE '*** file output by the software ***';
+ RUN ;
+ PROC CONTENTS DATA=&OUTDATA;
+ RUN;
+
+ %MEND R0522S1M;
