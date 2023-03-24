@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use csv::ReaderBuilder;
 use risc0_zkvm::serde::to_vec;
+use std::error::Error;
 
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
 
@@ -39,8 +40,9 @@ fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Er
         .from_reader(BufReader::new(file));
     let mut map = HashMap::<String, Vec<String>>::new();
     for result in reader.records() {
-        let mut dx = &result?[0].to_string();
-        let mut cc = &result?[1].to_string();
+        let record = result?;
+        let dx = &mut record[0].to_string();
+        let cc = &mut record[1].to_string();
         // Append HCC to condition category to match the format in the HCC coefficients file 
         cc.insert_str(0, "HCC");
 
@@ -72,65 +74,65 @@ fn read_hcc_labels(filename: &str) -> Result<HashMap<String, String>, csv::Error
     Ok(map)
 }
 
-fn get_agesex(age: i32, sex: &str) -> (&str, &str) {
-    let mut agegroup = "Adult";
-    let mut agesexvar = "MAGE_LAST_21_24";
+// fn get_agesex(age: i32, sex: &str) -> (&str, &str) {
+//     let mut agegroup = "Adult";
+//     let mut agesexvar = "MAGE_LAST_21_24";
 
-    if age < 1 {
-        agesexvar = match sex {
-            "M" => "AGE0_MALE",
-            _ => &(sex.to_owned() + "AGE_LAST_0_0"),
-        };
-        agegroup = "Infant";
-    } else if age < 2 {
-        agesexvar = match sex {
-            "M" => "AGE1_MALE",
-            _ => &(sex.to_owned() + "AGE_LAST_1_1"),
-        };
-        agegroup = "Infant";
-    } else if age < 5 {
-        agegroup = "Child";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_2_4");
-    } else if age < 10 {
-        agegroup = "Child";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_5_9");
-    } else if age < 15 {
-        agegroup = "Child";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_10_14");
-    } else if age < 21 {
-        agegroup = "Child";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_15_20");
-    } else if age < 25 {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_21_24");
-    } else if age < 30 {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_25_29");
-    } else if age < 35 {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_30_34");
-    } else if age < 40 {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_35_39");
-    } else if age < 45 {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_40_44");
-    } else if age < 50 {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_45_49");
-    } else if age < 55 {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_50_54");
-    } else if age < 60 {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_55_59");
-    } else {
-        agegroup = "Adult";
-        agesexvar = &(sex.to_owned() + "AGE_LAST_60_GT");
-    }
+//     if age < 1 {
+//         agesexvar = match sex {
+//             "M" => "AGE0_MALE",
+//             _ => &(sex.to_owned() + "AGE_LAST_0_0"),
+//         };
+//         agegroup = "Infant";
+//     } else if age < 2 {
+//         agesexvar = match sex {
+//             "M" => "AGE1_MALE",
+//             _ => &(sex.to_owned() + "AGE_LAST_1_1"),
+//         };
+//         agegroup = "Infant";
+//     } else if age < 5 {
+//         agegroup = "Child";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_2_4");
+//     } else if age < 10 {
+//         agegroup = "Child";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_5_9");
+//     } else if age < 15 {
+//         agegroup = "Child";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_10_14");
+//     } else if age < 21 {
+//         agegroup = "Child";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_15_20");
+//     } else if age < 25 {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_21_24");
+//     } else if age < 30 {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_25_29");
+//     } else if age < 35 {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_30_34");
+//     } else if age < 40 {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_35_39");
+//     } else if age < 45 {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_40_44");
+//     } else if age < 50 {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_45_49");
+//     } else if age < 55 {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_50_54");
+//     } else if age < 60 {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_55_59");
+//     } else {
+//         agegroup = "Adult";
+//         agesexvar = &(sex.to_owned() + "AGE_LAST_60_GT");
+//     }
 
-    return (agesexvar, agegroup);
-}
+//     return (agesexvar, agegroup);
+// }
 
 
 fn read_hier(fn_name: &str) -> HashMap<String, Vec<String>> {
@@ -153,7 +155,7 @@ fn read_hier(fn_name: &str) -> HashMap<String, Vec<String>> {
     hiers
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     // Make the prover.
     let mut prover = Prover::new(ZERO_RAF_ELF, ZERO_RAF_ID).expect(
         "Prover should be constructed from valid method source code and corresponding method ID",
@@ -169,20 +171,20 @@ fn main() {
         5. Read the HCC short labels from file
     */
 
-    let mut hcc_labels = match read_hcc_labels("hcc_labels.txt") {
+    let hcc_labels = match read_hcc_labels("hcc_labels.txt") {
         Ok(map) => map,
-        Err(err) => HashMap::new(),
+        Err(_err) => HashMap::new(),
     };
 
-    let mut hcc_hiers = read_hier("hcc_hier.txt");
+    let hcc_hiers = read_hier("hcc_hier.txt");
 
-    let mut hcc_coeffs = match read_hcc_coefficients("hcc_coeff.txt") {
+    let hcc_coeffs = match read_hcc_coefficients("hcc_coeff.txt") {
         Ok(map) => map,
-        Err(err) => HashMap::new(),
+        Err(_err) => HashMap::new(),
     };
-    let mut dx_to_cc = match read_dx_to_cc("hcc_diag.txt") {
+    let dx_to_cc = match read_dx_to_cc("hcc_diag.txt") {
         Ok(map) => map,
-        Err(err) => HashMap::new(),
+        Err(_err) => HashMap::new(),
     };
 
     let public_inputs = PublicRAFInputs {
@@ -231,6 +233,5 @@ fn main() {
     println!("Success! Saved the receipt to ");
 
     // TODO: Implement code for transmitting or serializing the receipt for other parties to verify here
-
-    Ok(());
+    Ok(())
 }

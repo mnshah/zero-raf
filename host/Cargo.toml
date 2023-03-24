@@ -8,5 +8,5 @@ methods = { path = "../methods" }
 csv = "1.1"
 serde = "1.0"
 regex = "1.6.0"
-risc0-zkvm = "0.13"
+risc0-zkvm = "0.12"
 zero-raf-core = { path = "../core" }
