@@ -74,67 +74,6 @@ fn read_hcc_labels(filename: &str) -> Result<HashMap<String, String>, csv::Error
     Ok(map)
 }
 
-// fn get_agesex(age: i32, sex: &str) -> (&str, &str) {
-//     let mut agegroup = "Adult";
-//     let mut agesexvar = "MAGE_LAST_21_24";
-
-//     if age < 1 {
-//         agesexvar = match sex {
-//             "M" => "AGE0_MALE",
-//             _ => &(sex.to_owned() + "AGE_LAST_0_0"),
-//         };
-//         agegroup = "Infant";
-//     } else if age < 2 {
-//         agesexvar = match sex {
-//             "M" => "AGE1_MALE",
-//             _ => &(sex.to_owned() + "AGE_LAST_1_1"),
-//         };
-//         agegroup = "Infant";
-//     } else if age < 5 {
-//         agegroup = "Child";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_2_4");
-//     } else if age < 10 {
-//         agegroup = "Child";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_5_9");
-//     } else if age < 15 {
-//         agegroup = "Child";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_10_14");
-//     } else if age < 21 {
-//         agegroup = "Child";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_15_20");
-//     } else if age < 25 {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_21_24");
-//     } else if age < 30 {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_25_29");
-//     } else if age < 35 {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_30_34");
-//     } else if age < 40 {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_35_39");
-//     } else if age < 45 {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_40_44");
-//     } else if age < 50 {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_45_49");
-//     } else if age < 55 {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_50_54");
-//     } else if age < 60 {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_55_59");
-//     } else {
-//         agegroup = "Adult";
-//         agesexvar = &(sex.to_owned() + "AGE_LAST_60_GT");
-//     }
-
-//     return (agesexvar, agegroup);
-// }
-
-
 fn read_hier(fn_name: &str) -> HashMap<String, Vec<String>> {
     let mut hiers = HashMap::new();
     let pttr = Regex::new(r"%SET0\(CC=(\d+).+%STR\((.+)\)\)").unwrap();
