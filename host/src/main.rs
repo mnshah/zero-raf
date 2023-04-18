@@ -31,7 +31,8 @@ fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv::Er
 }
 
 /*
-    Reads in a CSV file and returns a dictionary of diagnosis codes to a list of condition categories
+    Reads in a CSV file and returns a dictionary of diagnosis codes to a list of 
+    HCCs (hierarchical condition categories)
 */
 fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> {
     let file = File::open(filename)?;
