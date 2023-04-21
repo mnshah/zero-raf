@@ -5,7 +5,31 @@ risc0_zkvm::guest::entry!(main);
 use risc0_zkvm::guest::env;
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
 use std::collections::HashMap;
+use std::sync::Once;
 
+// Define a Struct to capture the original RAF coefficient and whether the attribute is 
+// true for the patient. The struct will be used by a global HashMap to determine if the 
+// coefficient should be applied to the RAF score.
+#[derive(Debug)]
+pub struct RAFAttribute {
+    pub coefficient: f32,
+    pub is_true: bool,
+}
+
+// Create a global HashMap to store the RAF attributes. The HashMap will be initialized
+// in the main function using the public HCC Coefficients and `is_true` set to false.
+// As the Guest code continues, applicable RAF attributes will be set to true.
+static mut GLOBAL_RAF_MAP: Option<HashMap<String, RAFAttribute>> = None;
+static INIT: Once = Once::new();
+
+fn _get_global_raf_map() -> &'static mut HashMap<String, RAFAttribute> {
+    unsafe {
+        INIT.call_once(|| {
+            GLOBAL_RAF_MAP = Some(HashMap::new());
+        });
+        GLOBAL_RAF_MAP.as_mut().unwrap()
+    }
+}
 
 // 1  MACRO NAME:  V28I0ED1
 //                 UDXG update V0123 for V28 model (payment HCCs only). 
@@ -416,6 +440,16 @@ pub fn main() {
 
     // Read in private inputs
     let _private_input: PrivateRAFInput = env::read();
+
+    // Iterate through hcc_coefficients and initialize the GLOBAL_RAF_MAP
+    let mut global_raf_map = _get_global_raf_map();
+    for ele in _public_input.hcc_coefficients.iter() {
+        let label = String::from(ele.0);
+        global_raf_map.entry(label).or_insert(RAFAttribute {
+            coefficient: *ele.1,
+            is_true: false,
+        });
+    }
     
     // Filter the private input diagnosis codes to only those that are mapped to HCCs
     let mut hcc_list = vec![];
@@ -436,6 +470,7 @@ pub fn main() {
     let final_hcc_list = _apply_hierarchy(_public_input.hcc_hierarchies, &flattened_hcc_list);
 
     // Apply interactions to HCC list
+    let final_interactions = _apply_interactions(&final_hcc_list, _private_input.entitlement_reason_code == "0");
 
     // Apply coefficients
 
