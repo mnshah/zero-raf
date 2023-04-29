@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 /// Public data used in Guest to calculate RAF score for a patient
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,4 +38,10 @@ pub struct PrivateRAFInput {
     // Boolean indicating Medicaid status
     pub medicaid_status:    bool,
 
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Journal {
+    pub raf_scores: HashMap<String, f32>,
+    pub coefficients: HashMap<String, f32>,
 }

@@ -16,17 +16,28 @@ use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
 */
 fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv::Error> {
     let file = File::open(filename)?;
-    let mut reader = ReaderBuilder::new()
-        .has_headers(false)
-        .from_reader(BufReader::new(file));
+    let mut reader = BufReader::new(file);
     let mut map = HashMap::new();
-    for result in reader.records() {
-        let record = result?;
-        if let Some((key, value)) = record.iter().next().zip(record.iter().skip(1).next()) {
-            let coeff: f32 = value.parse().unwrap();
-            map.insert(key.to_string(), coeff);
-        }
+    let mut headers = String::new();
+    reader.read_line(&mut headers);
+    let mut values = String::new();
+    reader.read_line(&mut values);
+
+    // Split headers into Vector of strings split by ","
+    let headers: Vec<&str> = headers.split(",").collect();
+
+    // Split values into Vector of strings split by ","
+    let values: Vec<&str> = values.split(",").collect();
+
+    // Assert headers and values are the same length
+    assert_eq!(headers.len(), values.len());
+
+    // Iterate through headers and values and insert into HashMap
+    for i in 0..headers.len() {
+        map.insert(headers[i].to_string(), values[i].trim().parse::<f32>().unwrap());
     }
+
+    println!("{:?}", map);
     Ok(map)
 }
 
@@ -38,6 +49,7 @@ fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Er
     let file = File::open(filename)?;
     let mut reader = ReaderBuilder::new()
         .has_headers(false)
+        .delimiter(b'\t')
         .from_reader(BufReader::new(file));
     let mut map = HashMap::<String, Vec<String>>::new();
     for result in reader.records() {
@@ -54,28 +66,33 @@ fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Er
             map.insert(dx.to_string(), vec![cc.to_string()]);
         }
     }
+
+    // println!("{:?}", map);
     Ok(map)
 }
 
 /*
-    Reads in label file and returns a dictorionary of HCC to label
+    Reads in label file and returns a dictionary of HCC to label
 */
 fn read_hcc_labels(filename: &str) -> Result<HashMap<String, String>, csv::Error> {
+    let mut labels = HashMap::new();
     let file = File::open(filename)?;
-    let mut reader = ReaderBuilder::new()
-        .has_headers(false)
-        .from_reader(BufReader::new(file));
-    let mut map = HashMap::new();
-    for result in reader.records() {
-        let record = result?;
-        if let Some((key, value)) = record.iter().next().zip(record.iter().skip(1).next()) {
-            map.insert(key.to_string(), value.to_string());
+    let reader = BufReader::new(file);
+    let re = Regex::new(r#"\s*((?:HCC|CC)\d+)\s*=\s*"([^"]+)"#).unwrap();
+
+    
+    for line in reader.lines() {
+        let line = line.unwrap();
+        if let Some(captures) = re.captures(&line) {
+            let hcc = captures.get(1).unwrap().as_str();
+            let label = captures.get(2).unwrap().as_str();
+            labels.insert(hcc.to_string(), label.to_string());
         }
     }
-    Ok(map)
+    Ok(labels)
 }
 
-fn read_hier(fn_name: &str) -> HashMap<String, Vec<String>> {
+fn read_hier(fn_name: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> {
     let mut hiers = HashMap::new();
     let pttr = Regex::new(r"%SET0\(CC=(\d+).+%STR\((.+)\)\)").unwrap();
     let file = File::open(fn_name).unwrap();
@@ -92,7 +109,8 @@ fn read_hier(fn_name: &str) -> HashMap<String, Vec<String>> {
             hiers.insert(k, v);
         }
     }
-    hiers
+    // println!("{:?}", hiers);
+    Ok(hiers)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -111,18 +129,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         5. Read the HCC short labels from file
     */
 
-    let hcc_labels = match read_hcc_labels("hcc_labels.txt") {
+    let hcc_labels = match read_hcc_labels("./CMS-Data/PY2023/V28115L3.txt") {
         Ok(map) => map,
         Err(_err) => HashMap::new(),
     };
 
-    let hcc_hiers = read_hier("hcc_hier.txt");
-
-    let hcc_coeffs = match read_hcc_coefficients("hcc_coeff.txt") {
+    let hcc_hiers = match read_hier("./CMS-Data/PY2023/V28115H1.TXT") {
         Ok(map) => map,
         Err(_err) => HashMap::new(),
     };
-    let dx_to_cc = match read_dx_to_cc("hcc_diag.txt") {
+
+    let hcc_coeffs = match read_hcc_coefficients("./CMS-Data/PY2023/C2824T2N.csv") {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let dx_to_cc = match read_dx_to_cc("./CMS-Data/PY2023/F2823T2N_FY22FY23.TXT") {
         Ok(map) => map,
         Err(_err) => HashMap::new(),
     };
@@ -146,7 +168,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         entitlement_reason_code: "1".to_string(),
         medicaid_status: false,
     };
-
     prover.add_input_u32_slice(&risc0_zkvm::serde::to_vec(&private_input).unwrap());
 
 

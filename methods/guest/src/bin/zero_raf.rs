@@ -3,7 +3,7 @@
 
 risc0_zkvm::guest::entry!(main);
 use risc0_zkvm::guest::env;
-use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
+use zero_raf_core::{PublicRAFInputs, PrivateRAFInput, Journal};
 use std::collections::HashMap;
 use std::sync::Once;
 
@@ -433,6 +433,94 @@ fn _apply_interactions(patient_hcc_list : &Vec<String>, is_disabled : bool) -> V
     return final_interactions;
 }
 
+
+/*
+
+ %LET ADDZ=%STR(                                                                                
+  D1 D2 D3 D4 D5 D6 D7 D8 D9 D10P                                                                 
+  );     
+
+ %*list of HCCs included in models;
+ %LET HCCV28_list115 = %STR(      
+HCC1 HCC2 HCC6 HCC17 HCC18 HCC19 HCC20 HCC21 HCC22 HCC23 HCC35 HCC36
+HCC37 HCC38 HCC48 HCC49 HCC50 HCC51 HCC62 HCC63 HCC64 HCC65 HCC68 HCC77
+HCC78 HCC79 HCC80 HCC81 HCC92 HCC93 HCC94 HCC107 HCC108 HCC109 HCC111
+HCC112 HCC114 HCC115 HCC125 HCC126 HCC127 HCC135 HCC136 HCC137 HCC138
+HCC139 HCC151 HCC152 HCC153 HCC154 HCC155 HCC180 HCC181 HCC182 HCC190
+HCC191 HCC192 HCC193 HCC195 HCC196 HCC197 HCC198 HCC199 HCC200 HCC201
+HCC202 HCC211 HCC212 HCC213 HCC221 HCC222 HCC223 HCC224 HCC225 HCC226
+HCC227 HCC228 HCC229 HCC238 HCC248 HCC249 HCC253 HCC254 HCC263 HCC264
+HCC267 HCC276 HCC277 HCC278 HCC279 HCC280 HCC282 HCC283 HCC298 HCC300
+HCC326 HCC327 HCC328 HCC329 HCC379 HCC380 HCC381 HCC382 HCC383 HCC385
+HCC387 HCC397 HCC398 HCC399 HCC401 HCC402 HCC405 HCC409 HCC454 HCC463
+     );
+ %LET HCClist=&HCCV28_list115;
+ %LET CClist=&CCV28_list115;
+
+ %* age/sex variables for Community Aged regression;
+ %LET COMM_REGA= %STR(&AGESEXVA
+                      &orig_int
+                      &HCClist
+                      &INTERRACC_VARSA 
+                      &ADDZ);
+
+ %LET AGESEXVA=                                    F65_69
+                F70_74 F75_79 F80_84 F85_89 F90_94 F95_GT
+                                                   M65_69
+                M70_74 M75_79 M80_84 M85_89 M90_94 M95_GT;
+
+ %*interaction variables for Community Aged regressions;                                             
+ %LET INTERRACC_VARSA=%STR(DIABETES_HF_V28                                                                      
+                           HF_CHR_LUNG_V28                                                                      
+                           HF_KIDNEY_V28                                                                        
+                           CHR_LUNG_CARD_RESP_FAIL_V28                                                          
+                           HF_HCC238_V28                                                                         
+           );                                                                                        
+                                                                                                     
+ %LET ORIG_INT =%STR(OriginallyDisabled_Female OriginallyDisabled_Male);  
+ OriginallyDisabled_Female= ORIGDS*(SEX='2');
+ OriginallyDisabled_Male  = ORIGDS*(SEX='1');
+
+ %LET COMM_REGD= %STR(&AGESEXVD
+                      &HCClist
+                      &INTERRACC_VARSD
+                      &ADDZ);
+
+
+ %* age/sex variables for Community Disabled regression;
+ %LET AGESEXVD= F0_34  F35_44 F45_54 F55_59 F60_64
+                M0_34  M35_44 M45_54 M55_59 M60_64;
+
+ %*interaction variables for Community Disabled regressions;                                         
+ %LET INTERRACC_VARSD=%STR(DIABETES_HF_V28
+                           HF_CHR_LUNG_V28
+                           HF_KIDNEY_V28
+                           CHR_LUNG_CARD_RESP_FAIL_V28
+                           HF_HCC238_V28
+                           gSubUseDisorder_gPsych_V28
+           );
+
+    %&SCOREMAC(PVAR=SCORE_COMMUNITY_NA,  RLIST=&COMM_REGA, CPREF=CNA_);
+    %&SCOREMAC(PVAR=SCORE_COMMUNITY_ND,  RLIST=&COMM_REGD, CPREF=CND_);
+    %&SCOREMAC(PVAR=SCORE_COMMUNITY_FBA, RLIST=&COMM_REGA, CPREF=CFA_);
+    %&SCOREMAC(PVAR=SCORE_COMMUNITY_FBD, RLIST=&COMM_REGD, CPREF=CFD_);
+    %&SCOREMAC(PVAR=SCORE_COMMUNITY_PBA, RLIST=&COMM_REGA, CPREF=CPA_);
+    %&SCOREMAC(PVAR=SCORE_COMMUNITY_PBD, RLIST=&COMM_REGD, CPREF=CPD_);
+*/
+fn _get_community_model_score(model_prefix : String) -> HashMap::<String,f32> {
+
+    let coefficients = _get_global_raf_map();
+    let mut comm_regA_score = 0.0;
+    let mut comm_regD_score = 0.0;
+
+    // Gather all the coefficient values for variable that apply to Community Aged Model
+
+    let mut comm_scores = HashMap::<String, f32>::new();
+    comm_scores.entry("COMM_REGA".to_string()).or_insert(comm_regA_score);
+    comm_scores.entry("COMM_REGD".to_string()).or_insert(comm_regD_score);
+
+    return comm_scores;
+}
 pub fn main() {
 
     // Read in public inputs
@@ -472,8 +560,15 @@ pub fn main() {
     // Apply interactions to HCC list
     let final_interactions = _apply_interactions(&final_hcc_list, _private_input.entitlement_reason_code == "0");
 
-    // Apply coefficients
+    // Apply coefficients for each scoring model
+    let comm_score = _get_community_model_score(String::from("CNA")); 
 
     // Calculate RAF score by summing the values for each HCC
+    let mut journal = Journal {
+        raf_scores: comm_score,
+        coefficients: HashMap::<String, f32>::new(),
+    };
+
+    env::commit(&journal);
 
 }
