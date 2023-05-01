@@ -1,11 +1,10 @@
 use methods::{ZERO_RAF_ELF, ZERO_RAF_ID};
-use risc0_zkvm::Prover;
+use risc0_zkvm::{serde, Prover};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use csv::ReaderBuilder;
-use risc0_zkvm::serde::to_vec;
 use std::error::Error;
 
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
@@ -36,8 +35,6 @@ fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv::Er
     for i in 0..headers.len() {
         map.insert(headers[i].to_string(), values[i].trim().parse::<f32>().unwrap());
     }
-
-    println!("{:?}", map);
     Ok(map)
 }
 
@@ -66,8 +63,6 @@ fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Er
             map.insert(dx.to_string(), vec![cc.to_string()]);
         }
     }
-
-    // println!("{:?}", map);
     Ok(map)
 }
 
@@ -109,7 +104,6 @@ fn read_hier(fn_name: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> 
             hiers.insert(k, v);
         }
     }
-    // println!("{:?}", hiers);
     Ok(hiers)
 }
 
@@ -155,7 +149,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         hcc_labels: hcc_labels,
         dx_to_cc: dx_to_cc,
     };
-    prover.add_input_u32_slice(&risc0_zkvm::serde::to_vec(&public_inputs).unwrap());
+    prover.add_input_u32_slice(&serde::to_vec(&public_inputs)?);
 
     /*
         Phase 2: Read in the demographic data for 1 or more patients to pass to the Guest code
@@ -168,7 +162,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         entitlement_reason_code: "1".to_string(),
         medicaid_status: false,
     };
-    prover.add_input_u32_slice(&risc0_zkvm::serde::to_vec(&private_input).unwrap());
+    prover.add_input_u32_slice(&serde::to_vec(&private_input)?);
 
 
 
