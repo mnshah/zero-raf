@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap};
 
 /// Public data used in Guest to calculate RAF score for a patient
 #[derive(Debug, Serialize, Deserialize)]

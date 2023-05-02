@@ -149,6 +149,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         hcc_labels: hcc_labels,
         dx_to_cc: dx_to_cc,
     };
+
+    println!("About to serialize public inputs");
+    println!("{:?}", public_inputs);
     prover.add_input_u32_slice(&serde::to_vec(&public_inputs)?);
 
     /*
@@ -162,6 +165,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         entitlement_reason_code: "1".to_string(),
         medicaid_status: false,
     };
+
+    println!("About to serialize private inputs");
     prover.add_input_u32_slice(&serde::to_vec(&private_input)?);
 
 
@@ -189,4 +194,29 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // TODO: Implement code for transmitting or serializing the receipt for other parties to verify here
     Ok(())
+}
+
+
+#[test]
+fn can_send_to_prover() {
+    let mut prover = Prover::new(ZERO_RAF_ELF, ZERO_RAF_ID).expect(
+        "Prover should be constructed from valid method source code and corresponding method ID",
+    );
+    let private_input = PrivateRAFInput {
+        diagnosis_codes: vec!["A1234".to_string(), "B1234".to_string()],
+        age: 70,
+        sex: "M".to_string(),
+        eligibility_code: "CNA".to_string(),
+        entitlement_reason_code: "1".to_string(),
+        medicaid_status: false,
+    };
+
+    let a: u64 = 17;
+    let b: u64 = 23;
+
+    println!("About to serialize private inputs");
+    let input_data = serde::to_vec(&private_input).expect("should be serializable");
+    prover.add_input_u32_slice(&input_data);
+    let receipt = prover.run()
+                        .expect("Code should be provable unless it 1) had an error or 2) overflowed the cycle limit. See `embed_methods_with_options` for information on adjusting maximum cycle count.");
 }

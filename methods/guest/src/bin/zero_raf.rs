@@ -1,16 +1,18 @@
 #![no_main]
 // #![no_std]  // std support is experimental, but you can remove this to try it
 
-risc0_zkvm::guest::entry!(main);
 use risc0_zkvm::guest::env;
+risc0_zkvm::guest::entry!(main);
+
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput, Journal};
 use std::collections::HashMap;
 use std::sync::Once;
 
+
+
 // Define a Struct to capture the original RAF coefficient and whether the attribute is 
 // true for the patient. The struct will be used by a global HashMap to determine if the 
 // coefficient should be applied to the RAF score.
-#[derive(Debug)]
 pub struct RAFAttribute {
     pub coefficient: f32,
     pub is_true: bool,
@@ -507,11 +509,11 @@ HCC387 HCC397 HCC398 HCC399 HCC401 HCC402 HCC405 HCC409 HCC454 HCC463
     %&SCOREMAC(PVAR=SCORE_COMMUNITY_PBA, RLIST=&COMM_REGA, CPREF=CPA_);
     %&SCOREMAC(PVAR=SCORE_COMMUNITY_PBD, RLIST=&COMM_REGD, CPREF=CPD_);
 */
-fn _get_community_model_score(model_prefix : String) -> HashMap::<String,f32> {
+fn _get_community_model_score() -> HashMap::<String,f32> {
 
-    let coefficients = _get_global_raf_map();
-    let mut comm_regA_score = 0.0;
-    let mut comm_regD_score = 0.0;
+    // let coefficients = _get_global_raf_map();
+    let comm_regA_score = 0.0;
+    let comm_regD_score = 0.0;
 
     // Gather all the coefficient values for variable that apply to Community Aged Model
 
@@ -550,7 +552,7 @@ pub fn main() {
 
 
     // Apply Age & Sex edits 
-    let age_sex_map = _age_sex_v2(_private_input.age, &_private_input.sex, &_private_input.entitlement_reason_code);
+    let _age_sex_map = _age_sex_v2(_private_input.age, &_private_input.sex, &_private_input.entitlement_reason_code);
 
     // TODO: Apply ICD-10 edits (MCE data should be an input parameter)
 
@@ -558,10 +560,10 @@ pub fn main() {
     let final_hcc_list = _apply_hierarchy(_public_input.hcc_hierarchies, &flattened_hcc_list);
 
     // Apply interactions to HCC list
-    let final_interactions = _apply_interactions(&final_hcc_list, _private_input.entitlement_reason_code == "0");
+    let _final_interactions = _apply_interactions(&final_hcc_list, _private_input.entitlement_reason_code == "0");
 
     // Apply coefficients for each scoring model
-    let comm_score = _get_community_model_score(String::from("CNA")); 
+    let comm_score = _get_community_model_score(); 
 
     // Calculate RAF score by summing the values for each HCC
     let mut journal = Journal {
