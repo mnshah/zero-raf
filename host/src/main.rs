@@ -1,5 +1,7 @@
-use methods::{ZERO_RAF_ELF, ZERO_RAF_ID};
-use risc0_zkvm::{serde, Prover};
+use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
+use zero_raf_methods::{ZERO_RAF_ELF, ZERO_RAF_ID};
+use risc0_zkvm::serde::{to_vec};
+use risc0_zkvm::Prover;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs::File;
@@ -7,7 +9,6 @@ use std::io::{BufRead, BufReader};
 use csv::ReaderBuilder;
 use std::error::Error;
 
-use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
 
 
 /*
@@ -109,9 +110,9 @@ fn read_hier(fn_name: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> 
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Make the prover.
-    let mut prover = Prover::new(ZERO_RAF_ELF, ZERO_RAF_ID).expect(
-        "Prover should be constructed from valid method source code and corresponding method ID",
-    );
+    // let mut prover = Prover::new(ZERO_RAF_ELF, ZERO_RAF_ID).expect(
+    //     "Prover should be constructed from valid method source code and corresponding method ID",
+    // );
 
     // TODO: Implement communication with the guest here
     /*
@@ -152,7 +153,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("About to serialize public inputs");
     println!("{:?}", public_inputs);
-    prover.add_input_u32_slice(&serde::to_vec(&public_inputs)?);
+    // prover.add_input_u32_slice(&serde::to_vec(&public_inputs)?);
 
     /*
         Phase 2: Read in the demographic data for 1 or more patients to pass to the Guest code
@@ -167,9 +168,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     println!("About to serialize private inputs");
-    prover.add_input_u32_slice(&serde::to_vec(&private_input)?);
 
+    let receipt = raf(&private_input, &public_inputs);
+    receipt.verify(ZERO_RAF_ID).unwrap();
 
+    // prover.add_input_u32_slice(&serde::to_vec(&private_input)?);
 
     /*
         Phase 3: Read in the diagnosis data for 1 or more patients to pass to the Guest code
@@ -182,8 +185,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     /*
         Phase 5: Run the Guest code to output the RAF for each patient
     */
-    let receipt = prover.run()
-        .expect("Code should be provable unless it 1) had an error or 2) overflowed the cycle limit. See `embed_methods_with_options` for information on adjusting maximum cycle count.");
+    // let receipt = prover.run()
+    //     .expect("Code should be provable unless it 1) had an error or 2) overflowed the cycle limit. See `embed_methods_with_options` for information on adjusting maximum cycle count.");
 
     // Optional: Verify receipt to confirm that recipients will also be able to verify your receipt
     receipt.verify(ZERO_RAF_ID).expect(
@@ -196,27 +199,49 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> Receipt {
+
+    let mut prover =
+        Prover::new(ZERO_RAF_ELF).expect("Prover should be constructed from valid ELF binary");
+
+    // let env = ExecutorEnv::builder()
+    //     .add_input(&to_vec(private_inputs).unwrap())
+    //     .add_input(&to_vec(public_inputs).unwrap())
+    //     .build();
+
+    // // Make the Executor.
+    // let mut exec = Executor::from_elf(env, ZERO_RAF_ELF).unwrap();
+
+    // // Run the executor to produce a session.
+    // let session = exec.run().unwrap();
+
+    // // Prove the session to produce a receipt.
+    // return session.prove().unwrap();
+    prover.add_input_u32_slice(&to_vec(public_inputs).unwrap());
+    prover.add_input_u32_slice(&to_vec(private_inputs).unwrap());
+    let receipt = prover.run().unwrap();
+    return receipt;
+
+}
+
 
 #[test]
 fn can_send_to_prover() {
-    let mut prover = Prover::new(ZERO_RAF_ELF, ZERO_RAF_ID).expect(
-        "Prover should be constructed from valid method source code and corresponding method ID",
-    );
-    let private_input = PrivateRAFInput {
-        diagnosis_codes: vec!["A1234".to_string(), "B1234".to_string()],
-        age: 70,
-        sex: "M".to_string(),
-        eligibility_code: "CNA".to_string(),
-        entitlement_reason_code: "1".to_string(),
-        medicaid_status: false,
-    };
+    // let mut prover = Prover::new(ZERO_RAF_ELF, ZERO_RAF_ID).expect(
+    //     "Prover should be constructed from valid method source code and corresponding method ID",
+    // );
+    // let private_input = PrivateRAFInput {
+    //     diagnosis_codes: vec!["A1234".to_string(), "B1234".to_string()],
+    //     age: 70,
+    //     sex: "M".to_string(),
+    //     eligibility_code: "CNA".to_string(),
+    //     entitlement_reason_code: "1".to_string(),
+    //     medicaid_status: false,
+    // };
 
-    let a: u64 = 17;
-    let b: u64 = 23;
+    // let a: u64 = 17;
+    // let b: u64 = 23;
 
-    println!("About to serialize private inputs");
-    let input_data = serde::to_vec(&private_input).expect("should be serializable");
-    prover.add_input_u32_slice(&input_data);
-    let receipt = prover.run()
-                        .expect("Code should be provable unless it 1) had an error or 2) overflowed the cycle limit. See `embed_methods_with_options` for information on adjusting maximum cycle count.");
+    // println!("About to serialize private inputs");
+    // let input_data = &to_vec(&private_input).expect("should be serializable");
 }
