@@ -1,7 +1,7 @@
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
 use zero_raf_methods::{ZERO_RAF_ELF, ZERO_RAF_ID};
 use risc0_zkvm::serde::{to_vec};
-use risc0_zkvm::Prover;
+use risc0_zkvm::{Executor, ExecutorEnv, SessionReceipt};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs::File;
@@ -199,28 +199,29 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> Receipt {
+fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> SessionReceipt {
 
-    let mut prover =
-        Prover::new(ZERO_RAF_ELF).expect("Prover should be constructed from valid ELF binary");
+    // let mut prover =
+    //     Prover::new(ZERO_RAF_ELF).expect("Prover should be constructed from valid ELF binary");
 
-    // let env = ExecutorEnv::builder()
-    //     .add_input(&to_vec(private_inputs).unwrap())
-    //     .add_input(&to_vec(public_inputs).unwrap())
-    //     .build();
+    let env = ExecutorEnv::builder()
+        .add_input(&to_vec(private_inputs).unwrap())
+        .add_input(&to_vec(public_inputs).unwrap())
+        .build();
 
-    // // Make the Executor.
-    // let mut exec = Executor::from_elf(env, ZERO_RAF_ELF).unwrap();
+    // Make the Executor.
+    let mut exec = Executor::from_elf(env, ZERO_RAF_ELF).unwrap();
 
-    // // Run the executor to produce a session.
-    // let session = exec.run().unwrap();
+    // Run the executor to produce a session.
+    let session = exec.run().unwrap();
+
 
     // // Prove the session to produce a receipt.
-    // return session.prove().unwrap();
-    prover.add_input_u32_slice(&to_vec(public_inputs).unwrap());
-    prover.add_input_u32_slice(&to_vec(private_inputs).unwrap());
-    let receipt = prover.run().unwrap();
-    return receipt;
+    return session.prove().unwrap();
+    // prover.add_input_u32_slice(&to_vec(public_inputs).unwrap());
+    // prover.add_input_u32_slice(&to_vec(private_inputs).unwrap());
+    // let receipt = prover.run().unwrap();
+    // return receipt;
 
 }
 

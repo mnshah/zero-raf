@@ -9,7 +9,7 @@ edition = "2021"
 
 [dependencies]
 zero-raf-core = { path = "../../core" }
-risc0-zkvm = { git = "https://github.com/risc0/risc0.git", rev = "6fb72df1284c0cf0a516dd87af193256d1baec81", features = ["std"] }
+risc0-zkvm = { git = "https://github.com/risc0/risc0.git", rev = "84528d31c0efad566e585aa04a83d6692b32bd16", default-features = false, features = ["std"] }
 
 [patch.crates-io]
 crossbeam = { git = "https://github.com/risc0/crossbeam", rev = "b25eb50f8c193f36dacb6739692261ea96827bb7" }
