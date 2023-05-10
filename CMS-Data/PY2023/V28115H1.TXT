@@ -58,17 +58,13 @@
  /*Psychiatric 4 */%SET0(CC=154   , HIER=%STR(155 ));
  /*Spinal 1 */     %SET0(CC=180   , HIER=%STR(181, 182, 253, 254 ));
  /*Spinal 2 */     %SET0(CC=181   , HIER=%STR(182, 254 ));
- /*Neuro 2 */      %SET0(CC=191   , HIER=%STR(
-180, 181, 182, 192, 253, 254 ));
- /*Neuro 3 */      %SET0(CC=192   , HIER=%STR(180, 181, 182, 253, 254
-));
+ /*Neuro 2 */      %SET0(CC=191   , HIER=%STR(180, 181, 182, 192, 253, 254 ));
+ /*Neuro 3 */      %SET0(CC=192   , HIER=%STR(180, 181, 182, 253, 254 ));
  /*Neuro 6 */      %SET0(CC=195   , HIER=%STR(196 ));
  /*Arrest 1 */     %SET0(CC=211   , HIER=%STR(212, 213 ));
  /*Arrest 2 */     %SET0(CC=212   , HIER=%STR(213 ));
- /*Heart 1 */      %SET0(CC=221   , HIER=%STR(
-222, 223, 224, 225, 226, 227 ));
- /*Heart 2 */      %SET0(CC=222   , HIER=%STR(223, 224, 225, 226, 227
-));
+ /*Heart 1 */      %SET0(CC=221   , HIER=%STR(222, 223, 224, 225, 226, 227 ));
+ /*Heart 2 */      %SET0(CC=222   , HIER=%STR(223, 224, 225, 226, 227 ));
  /*Heart 3 */      %SET0(CC=223   , HIER=%STR(224, 225, 226, 227 ));
  /*Heart 4 */      %SET0(CC=224   , HIER=%STR(225, 226, 227 ));
  /*Heart 5 */      %SET0(CC=225   , HIER=%STR(226, 227 ));

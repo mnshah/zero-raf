@@ -10,8 +10,14 @@ bytemuck = "1.12"
 divrem = "1.0.0"
 elsa = "1.7"
 serde = "1.0"
+csv = "1.1"
+regex = "1.6.0"
 
 [dev-dependencies]
 hex = "0.4.3"
 rand = "0.8.5"
 sha2 = "0.10.6"
+
+
+[env]
+CMS_DATA_DIR = {value = "CMS-Data", relative = true}

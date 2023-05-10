@@ -6,6 +6,4 @@ edition = "2021"
 [dependencies]
 zero-raf-methods = { path = "../methods" }
 zero-raf-core = { path = "../core" }
-csv = "1.1"
-regex = "1.6.0"
 risc0-zkvm = { git = "https://github.com/risc0/risc0.git", rev = "84528d31c0efad566e585aa04a83d6692b32bd16", default-features = false, features = ["std", "prove"] }

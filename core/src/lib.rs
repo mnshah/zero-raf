@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap};
 
+pub mod utils;
+
 /// Public data used in Guest to calculate RAF score for a patient
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PublicRAFInputs {

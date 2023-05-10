@@ -1,112 +1,9 @@
-use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
+use zero_raf_core::{PrivateRAFInput};
 use zero_raf_methods::{ZERO_RAF_ELF, ZERO_RAF_ID};
 use risc0_zkvm::serde::{to_vec};
 use risc0_zkvm::{Executor, ExecutorEnv, SessionReceipt};
-use regex::Regex;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use csv::ReaderBuilder;
 use std::error::Error;
 
-
-
-/*
-    Reads in a CSV file and returns a dictionary of HCC conditions to decimal coefficients
-*/
-fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv::Error> {
-    let file = File::open(filename)?;
-    let mut reader = BufReader::new(file);
-    let mut map = HashMap::new();
-    let mut headers = String::new();
-    reader.read_line(&mut headers);
-    let mut values = String::new();
-    reader.read_line(&mut values);
-
-    // Split headers into Vector of strings split by ","
-    let headers: Vec<&str> = headers.split(",").collect();
-
-    // Split values into Vector of strings split by ","
-    let values: Vec<&str> = values.split(",").collect();
-
-    // Assert headers and values are the same length
-    assert_eq!(headers.len(), values.len());
-
-    // Iterate through headers and values and insert into HashMap
-    for i in 0..headers.len() {
-        map.insert(headers[i].to_string(), values[i].trim().parse::<f32>().unwrap());
-    }
-    Ok(map)
-}
-
-/*
-    Reads in a CSV file and returns a dictionary of diagnosis codes to a list of 
-    HCCs (hierarchical condition categories)
-*/
-fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> {
-    let file = File::open(filename)?;
-    let mut reader = ReaderBuilder::new()
-        .has_headers(false)
-        .delimiter(b'\t')
-        .from_reader(BufReader::new(file));
-    let mut map = HashMap::<String, Vec<String>>::new();
-    for result in reader.records() {
-        let record = result?;
-        let dx = &mut record[0].to_string();
-        let cc = &mut record[1].to_string();
-        // Append HCC to condition category to match the format in the HCC coefficients file 
-        cc.insert_str(0, "HCC");
-
-        // If the diagnosis code is already in the dictionary, append the new condition category to the existing value
-        if map.contains_key(dx) {
-            map.get_mut(dx).unwrap().push(cc.to_string());
-        } else {
-            map.insert(dx.to_string(), vec![cc.to_string()]);
-        }
-    }
-    Ok(map)
-}
-
-/*
-    Reads in label file and returns a dictionary of HCC to label
-*/
-fn read_hcc_labels(filename: &str) -> Result<HashMap<String, String>, csv::Error> {
-    let mut labels = HashMap::new();
-    let file = File::open(filename)?;
-    let reader = BufReader::new(file);
-    let re = Regex::new(r#"\s*((?:HCC|CC)\d+)\s*=\s*"([^"]+)"#).unwrap();
-
-    
-    for line in reader.lines() {
-        let line = line.unwrap();
-        if let Some(captures) = re.captures(&line) {
-            let hcc = captures.get(1).unwrap().as_str();
-            let label = captures.get(2).unwrap().as_str();
-            labels.insert(hcc.to_string(), label.to_string());
-        }
-    }
-    Ok(labels)
-}
-
-fn read_hier(fn_name: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> {
-    let mut hiers = HashMap::new();
-    let pttr = Regex::new(r"%SET0\(CC=(\d+).+%STR\((.+)\)\)").unwrap();
-    let file = File::open(fn_name).unwrap();
-    let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line.unwrap();
-        let matches = pttr.captures(&line);
-        if let Some(caps) = matches {
-            let k = "HCC".to_owned() + &caps[1];
-            let v: Vec<String> = caps[2]
-                .split(',')
-                .map(|x| "HCC".to_owned() + x.trim())
-                .collect();
-            hiers.insert(k, v);
-        }
-    }
-    Ok(hiers)
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Make the prover.
@@ -124,37 +21,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         5. Read the HCC short labels from file
     */
 
-    let hcc_labels = match read_hcc_labels("./CMS-Data/PY2023/V28115L3.txt") {
-        Ok(map) => map,
-        Err(_err) => HashMap::new(),
-    };
-
-    let hcc_hiers = match read_hier("./CMS-Data/PY2023/V28115H1.TXT") {
-        Ok(map) => map,
-        Err(_err) => HashMap::new(),
-    };
-
-    let hcc_coeffs = match read_hcc_coefficients("./CMS-Data/PY2023/C2824T2N.csv") {
-        Ok(map) => map,
-        Err(_err) => HashMap::new(),
-    };
-
-    let dx_to_cc = match read_dx_to_cc("./CMS-Data/PY2023/F2823T2N_FY22FY23.TXT") {
-        Ok(map) => map,
-        Err(_err) => HashMap::new(),
-    };
-
-    let public_inputs = PublicRAFInputs {
-        hcc_coefficients: hcc_coeffs,
-        hcc_hierarchies: hcc_hiers,
-        hcc_labels: hcc_labels,
-        dx_to_cc: dx_to_cc,
-    };
-
-    println!("About to serialize public inputs");
-    println!("{:?}", public_inputs);
-    // prover.add_input_u32_slice(&serde::to_vec(&public_inputs)?);
-
     /*
         Phase 2: Read in the demographic data for 1 or more patients to pass to the Guest code
     */
@@ -169,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("About to serialize private inputs");
 
-    let receipt = raf(&private_input, &public_inputs);
+    let receipt = raf(&private_input);
     receipt.verify(ZERO_RAF_ID).unwrap();
 
     // prover.add_input_u32_slice(&serde::to_vec(&private_input)?);
@@ -199,14 +65,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> SessionReceipt {
+fn raf(private_inputs: &PrivateRAFInput) -> SessionReceipt {
 
     // let mut prover =
     //     Prover::new(ZERO_RAF_ELF).expect("Prover should be constructed from valid ELF binary");
 
     let env = ExecutorEnv::builder()
         .add_input(&to_vec(private_inputs).unwrap())
-        .add_input(&to_vec(public_inputs).unwrap())
         .build();
 
     // Make the Executor.
@@ -228,9 +93,7 @@ fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> Ses
 
 #[test]
 fn can_send_to_prover() {
-    // let mut prover = Prover::new(ZERO_RAF_ELF, ZERO_RAF_ID).expect(
-    //     "Prover should be constructed from valid method source code and corresponding method ID",
-    // );
+
     // let private_input = PrivateRAFInput {
     //     diagnosis_codes: vec!["A1234".to_string(), "B1234".to_string()],
     //     age: 70,
@@ -240,9 +103,56 @@ fn can_send_to_prover() {
     //     medicaid_status: false,
     // };
 
-    // let a: u64 = 17;
-    // let b: u64 = 23;
+    // println!("Private Input: {}", private_input.diagnosis_codes[0]);
 
-    // println!("About to serialize private inputs");
-    // let input_data = &to_vec(&private_input).expect("should be serializable");
+    // let env = ExecutorEnv::builder()
+    // .add_input(&to_vec(&private_input).unwrap())
+    // .build();
+
+    // println!("About to make executor");
+
+    // // Make the Executor.
+    // let mut exec = Executor::from_elf(env, ZERO_RAF_ELF).unwrap();
+
+    // println!("About to run executor");
+
+    // // Run the executor to produce a session.
+    // let session = exec.run().unwrap();
+
+    // // Prove the session to produce a receipt.
+    // session.prove().unwrap();
+
+    // return;
+}
+
+#[test] 
+fn can_generate_hcc_labels() {}
+
+#[test] 
+fn can_generate_hcc_hierarchies() {}
+
+#[test] 
+fn can_generate_hcc_coefficients() {}
+
+#[test] 
+fn can_generate_dx_to_cc() {}
+
+#[test] 
+fn can_serialize_public_inputs() {}
+
+#[test]
+fn can_serialize_private_input() {
+
+    let private_input = PrivateRAFInput {
+        diagnosis_codes: vec!["A1234".to_string(), "B1234".to_string()],
+        age: 70,
+        sex: "M".to_string(),
+        eligibility_code: "CNA".to_string(),
+        entitlement_reason_code: "1".to_string(),
+        medicaid_status: false,
+    };
+
+    println!("About to serialize private inputs");
+    let _input_data = &to_vec(&private_input).unwrap();
+
 }

@@ -5,6 +5,7 @@ use risc0_zkvm::guest::env;
 risc0_zkvm::guest::entry!(main);
 
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput, Journal};
+use zero_raf_core::utils::{read_hcc_coefficients, read_hier, read_dx_to_cc, read_hcc_labels};
 use std::collections::HashMap;
 use std::sync::Once;
 
@@ -525,15 +526,45 @@ fn _get_community_model_score() -> HashMap::<String,f32> {
 }
 pub fn main() {
 
-    // Read in public inputs
-    let _public_input: PublicRAFInputs = env::read();
+    println!("In Guest code main function");
+
+    let hcc_labels = match read_hcc_labels("./CMS-Data/PY2023/V28115L3.txt") {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let hcc_hiers = match read_hier("./CMS-Data/PY2023/V28115H1.TXT") {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let hcc_coeffs = match read_hcc_coefficients("./CMS-Data/PY2023/C2824T2N.csv") {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let dx_to_cc = match read_dx_to_cc("./CMS-Data/PY2023/F2823T2N_FY22FY23.TXT") {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let _public_inputs = PublicRAFInputs {
+        hcc_coefficients: hcc_coeffs,
+        hcc_hierarchies: hcc_hiers,
+        hcc_labels: hcc_labels,
+        dx_to_cc: dx_to_cc,
+    };
+
+    println!("Public inputs: {:?}", _public_inputs);
 
     // Read in private inputs
     let _private_input: PrivateRAFInput = env::read();
 
+    println!("Private input: {:?}", _private_input);
+
     // Iterate through hcc_coefficients and initialize the GLOBAL_RAF_MAP
     let mut global_raf_map = _get_global_raf_map();
-    for ele in _public_input.hcc_coefficients.iter() {
+    for ele in _public_inputs.hcc_coefficients.iter() {
         let label = String::from(ele.0);
         global_raf_map.entry(label).or_insert(RAFAttribute {
             coefficient: *ele.1,
@@ -544,8 +575,8 @@ pub fn main() {
     // Filter the private input diagnosis codes to only those that are mapped to HCCs
     let mut hcc_list = vec![];
     for dx in _private_input.diagnosis_codes {
-        if _public_input.dx_to_cc.contains_key(&dx) {
-            hcc_list.push(_public_input.dx_to_cc.get(&dx).unwrap().clone());
+        if _public_inputs.dx_to_cc.contains_key(&dx) {
+            hcc_list.push(_public_inputs.dx_to_cc.get(&dx).unwrap().clone());
         }
     }
     let flattened_hcc_list = hcc_list.into_iter().flatten().collect::<Vec<String>>();
@@ -557,7 +588,7 @@ pub fn main() {
     // TODO: Apply ICD-10 edits (MCE data should be an input parameter)
 
     // Apply hierarchy to HCC list
-    let final_hcc_list = _apply_hierarchy(_public_input.hcc_hierarchies, &flattened_hcc_list);
+    let final_hcc_list = _apply_hierarchy(_public_inputs.hcc_hierarchies, &flattened_hcc_list);
 
     // Apply interactions to HCC list
     let _final_interactions = _apply_interactions(&final_hcc_list, _private_input.entitlement_reason_code == "0");
