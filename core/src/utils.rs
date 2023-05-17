@@ -10,10 +10,8 @@ use csv::ReaderBuilder;
  */
 pub fn get_cms_data_dir(performance_year: &str) -> String {
 
-    println!("Finding CMS Data directory for performance year: {}", performance_year);
     let mut path = env::current_dir().unwrap();
     while !path.ends_with("zero-raf") {
-        println!("Current path: {:?}", path);
         path.pop();
     }
     path.push("CMS-Data");
@@ -26,8 +24,6 @@ pub fn get_cms_data_dir(performance_year: &str) -> String {
     Reads in label file and returns a dictionary of HCC to label
 */
 pub fn read_hcc_labels(filename: &str) -> Result<HashMap<String, String>, csv::Error> {
-
-    println!("Reading HCC Labels from file: {:?}", filename);
 
     let mut labels = HashMap::new();
     let file = File::open(filename)?;
@@ -44,14 +40,10 @@ pub fn read_hcc_labels(filename: &str) -> Result<HashMap<String, String>, csv::E
         }
     }
 
-    println!("Number of HCC Labels: {:?}", labels.len());
-
     Ok(labels)
 }
 
 pub fn read_hier(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> {
-
-    println!("Reading HCC Hierarchies from file: {:?}", filename);
 
     let mut hiers = HashMap::new();
     let pttr = Regex::new(r"%SET0\(CC=(\d+).+%STR\((.+)\)\)").unwrap();
@@ -69,8 +61,6 @@ pub fn read_hier(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Er
             hiers.insert(k, v);
         }
     }
-
-    println!("Number of HCC Hierarchies: {:?}", hiers.len());
     Ok(hiers)
 }
 
@@ -78,8 +68,6 @@ pub fn read_hier(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Er
     Reads in a CSV file and returns a dictionary of HCC conditions to decimal coefficients
 */
 pub fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv::Error> {
-
-    println!("Reading HCC Coefficients from file: {:?}", filename);
 
     let file = File::open(filename)?;
     let mut reader = BufReader::new(file);
@@ -114,8 +102,6 @@ pub fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv
     HCCs (hierarchical condition categories)
 */
 pub fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> {
-
-    println!("Reading Diagnosis to HCCs from file: {:?}", filename);
 
     let file = File::open(filename)?;
     let mut reader = ReaderBuilder::new()
@@ -204,12 +190,25 @@ fn can_buld_hcc_coefficients_from_file() {
     let filename = path + "/C2824T2N.csv";
     let coeffs = read_hcc_coefficients(&filename).unwrap();
 
-    println!("Keys: {:?}", coeffs.keys());
-
     assert_eq!(coeffs.len(), 1237);
     assert_eq!(coeffs.get("CNA_F65_69").unwrap(), &0.33);
     assert_eq!(coeffs.get("CNA_HCC381").unwrap(), &1.075);
     assert_eq!(coeffs.get("INS_DIABETES_HF_V28").unwrap(), &0.209);
     assert_eq!(coeffs.get("SNPNE_NMCAID_ORIGDIS_NEM75_79").unwrap(), &2.039);
     assert_eq!(coeffs.get("SNPNE_MCAID_ORIGDIS_NEM95_GT").unwrap(), &2.573);
+}
+
+#[test]
+fn can_build_dx_to_cc_from_file() {
+    let path = get_cms_data_dir("PY2023");
+    let filename = path + "/F2823T2N_FY22FY23.TXT";
+    let dx2cc = read_dx_to_cc(&filename).unwrap();
+
+    assert_eq!(dx2cc.keys().len(), 7770);
+
+    let mut dx = dx2cc.get("B20").unwrap();
+    assert!(dx.contains(&"HCC1".to_string()));
+
+    dx = dx2cc.get("B4481").unwrap();
+    assert!(dx.contains(&"HCC280".to_string()));
 }

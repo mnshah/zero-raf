@@ -1,8 +1,10 @@
-use zero_raf_core::{PrivateRAFInput};
+use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
 use zero_raf_methods::{ZERO_RAF_ELF, ZERO_RAF_ID};
+use zero_raf_core::utils::{get_cms_data_dir, read_hcc_coefficients, read_hier, read_dx_to_cc, read_hcc_labels};
 use risc0_zkvm::serde::{to_vec};
 use risc0_zkvm::{Executor, ExecutorEnv, SessionReceipt};
 use std::error::Error;
+use std::collections::HashMap;
 
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -24,7 +26,36 @@ fn main() -> Result<(), Box<dyn Error>> {
     /*
         Phase 2: Read in the demographic data for 1 or more patients to pass to the Guest code
     */
-    let private_input = PrivateRAFInput {
+
+    let cms_dir = get_cms_data_dir("PY2023");
+    let hcc_labels = match read_hcc_labels(&(cms_dir + "/V28115L3.txt")) {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let hcc_hiers = match read_hier("./CMS-Data/PY2023/V28115H1.TXT") {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let hcc_coeffs = match read_hcc_coefficients("./CMS-Data/PY2023/C2824T2N.csv") {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let dx_to_cc = match read_dx_to_cc("./CMS-Data/PY2023/F2823T2N_FY22FY23.TXT") {
+        Ok(map) => map,
+        Err(_err) => HashMap::new(),
+    };
+
+    let _public_inputs = PublicRAFInputs {
+        hcc_coefficients: hcc_coeffs,
+        hcc_hierarchies: hcc_hiers,
+        hcc_labels: hcc_labels,
+        dx_to_cc: dx_to_cc,
+    };
+
+    let _private_input = PrivateRAFInput {
         diagnosis_codes: vec!["A1234".to_string(), "B1234".to_string()],
         age: 70,
         sex: "M".to_string(),
@@ -35,7 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("About to serialize private inputs");
 
-    let receipt = raf(&private_input);
+    let receipt = raf(&_private_input, &_public_inputs);
     receipt.verify(ZERO_RAF_ID).unwrap();
 
     // prover.add_input_u32_slice(&serde::to_vec(&private_input)?);
@@ -65,14 +96,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn raf(private_inputs: &PrivateRAFInput) -> SessionReceipt {
+fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> SessionReceipt {
 
     // let mut prover =
     //     Prover::new(ZERO_RAF_ELF).expect("Prover should be constructed from valid ELF binary");
 
     let env = ExecutorEnv::builder()
-        .add_input(&to_vec(private_inputs).unwrap())
-        .build();
+                .add_input(&to_vec(public_inputs).unwrap())
+                .add_input(&to_vec(private_inputs).unwrap())
+                .build();
 
     // Make the Executor.
     let mut exec = Executor::from_elf(env, ZERO_RAF_ELF).unwrap();
@@ -125,17 +157,6 @@ fn can_send_to_prover() {
     // return;
 }
 
-#[test] 
-fn can_generate_hcc_labels() {}
-
-#[test] 
-fn can_generate_hcc_hierarchies() {}
-
-#[test] 
-fn can_generate_hcc_coefficients() {}
-
-#[test] 
-fn can_generate_dx_to_cc() {}
 
 #[test] 
 fn can_serialize_public_inputs() {}

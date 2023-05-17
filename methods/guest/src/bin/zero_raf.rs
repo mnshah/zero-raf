@@ -1,11 +1,8 @@
-#![no_main]
-// #![no_std]  // std support is experimental, but you can remove this to try it
-
 use risc0_zkvm::guest::env;
+use risc0_zkvm::guest::env::log;
 risc0_zkvm::guest::entry!(main);
 
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput, Journal};
-use zero_raf_core::utils::{read_hcc_coefficients, read_hier, read_dx_to_cc, read_hcc_labels};
 use std::collections::HashMap;
 use std::sync::Once;
 
@@ -64,9 +61,9 @@ fn _get_global_raf_map() -> &'static mut HashMap<String, RAFAttribute> {
 
 //                 4. SEDITS - parameter for the main macro
 // *Translated from V28I0ED1.TXT for more details*
-fn icd_10_edits() {
+// fn icd_10_edits() {
 
-}
+// }
 
 // This function defines the Age & Sex grouping for the person with the given age, sex,
 // and original reason enrolled in Medicare. 
@@ -303,80 +300,113 @@ fn _apply_interactions(patient_hcc_list : &Vec<String>, is_disabled : bool) -> V
         }
     }
 
-    let cancer_vals = vec![interaction_counter["HCC17"], 
-                           interaction_counter["HCC18"], 
-                           interaction_counter["HCC19"], 
-                           interaction_counter["HCC20"], 
-                           interaction_counter["HCC21"], 
-                           interaction_counter["HCC22"], 
-                           interaction_counter["HCC23"]];
+    let mut cancer_vals = vec![0];
+    if interaction_counter.contains_key(&"HCC17") || 
+       interaction_counter.contains_key(&"HCC18") ||
+       interaction_counter.contains_key(&"HCC19") ||
+       interaction_counter.contains_key(&"HCC20") ||
+       interaction_counter.contains_key(&"HCC21") ||
+       interaction_counter.contains_key(&"HCC22") ||
+       interaction_counter.contains_key(&"HCC23") {
+        cancer_vals.push(1);
+    }
     diagnostic_counter.insert(&"CANCER_V28", cancer_vals.iter().max().unwrap());
 
-    let diabetes_vals = vec![interaction_counter["HCC35"], 
-                             interaction_counter["HCC36"], 
-                             interaction_counter["HCC37"], 
-                             interaction_counter["HCC38"]];
+    let mut diabetes_vals = vec![0];
+    if interaction_counter.contains_key(&"HCC35") ||
+       interaction_counter.contains_key(&"HCC36") ||
+       interaction_counter.contains_key(&"HCC37") ||
+       interaction_counter.contains_key(&"HCC38") { 
+        diabetes_vals.push(1);
+    }   
     diagnostic_counter.insert(&"DIABETES_V28", diabetes_vals.iter().max().unwrap());
 
-    let card_resp_fail_vals = vec![interaction_counter["HCC211"], 
-                                   interaction_counter["HCC212"], 
-                                   interaction_counter["HCC213"]];
+    let mut card_resp_fail_vals = vec![0];
+    if interaction_counter.contains_key("HCC211") ||
+       interaction_counter.contains_key("HCC212") ||
+       interaction_counter.contains_key("HCC213") {
+        card_resp_fail_vals.push(1);
+       }    
     diagnostic_counter.insert(&"CARD_RESP_FAIL", card_resp_fail_vals.iter().max().unwrap());
 
-    let hf_vals = vec![interaction_counter["HCC221"], 
-                       interaction_counter["HCC222"], 
-                       interaction_counter["HCC223"], 
-                       interaction_counter["HCC224"], 
-                       interaction_counter["HCC225"], 
-                       interaction_counter["HCC226"]];
+    let mut hf_vals = vec![0];
+    if interaction_counter.contains_key("HCC221") ||
+       interaction_counter.contains_key("HCC222") ||
+       interaction_counter.contains_key("HCC223") ||
+       interaction_counter.contains_key("HCC224") || 
+       interaction_counter.contains_key("HCC225") ||
+       interaction_counter.contains_key("HCC226") {
+        hf_vals.push(1);
+    }    
     diagnostic_counter.insert(&"HF_V28", hf_vals.iter().max().unwrap());
 
-    let chr_lung_vals = vec![interaction_counter["HCC276"], 
-                             interaction_counter["HCC277"], 
-                             interaction_counter["HCC278"], 
-                             interaction_counter["HCC279"], 
-                             interaction_counter["HCC280"]];
+    let mut chr_lung_vals = vec![0];
+    if interaction_counter.contains_key("HCC276") ||
+       interaction_counter.contains_key("HCC277") ||
+       interaction_counter.contains_key("HCC278") ||
+       interaction_counter.contains_key("HCC279") ||
+       interaction_counter.contains_key("HCC280") {
+        chr_lung_vals.push(1);
+    }
     diagnostic_counter.insert(&"CHR_LUNG_V28", chr_lung_vals.iter().max().unwrap());
 
-    let kidney_vals = vec![interaction_counter["HCC326"], 
-                           interaction_counter["HCC327"], 
-                           interaction_counter["HCC328"], 
-                           interaction_counter["HCC329"]];
+    let mut kidney_vals = vec![0];
+    if interaction_counter.contains_key("HCC326") ||
+       interaction_counter.contains_key("HCC327") ||
+       interaction_counter.contains_key("HCC328") ||
+       interaction_counter.contains_key("HCC329") {
+        kidney_vals.push(1);
+    }        
     diagnostic_counter.insert(&"KIDNEY_V28", kidney_vals.iter().max().unwrap());
 
-    let sepsis_vals = vec![interaction_counter["HCC2"]];
+    let mut sepsis_vals = vec![0];
+    if interaction_counter.contains_key("HCC2") { 
+        sepsis_vals.push(1);
+    }
     diagnostic_counter.insert(&"SEPSIS", sepsis_vals.iter().max().unwrap());
 
-    let sub_use_disorder_vals = vec![interaction_counter["HCC135"], 
-                                    interaction_counter["HCC136"], 
-                                    interaction_counter["HCC137"], 
-                                    interaction_counter["HCC138"], 
-                                    interaction_counter["HCC139"]];
+    let mut sub_use_disorder_vals = vec![0];
+    if interaction_counter.contains_key("HCC135") ||
+       interaction_counter.contains_key("HCC136") ||
+       interaction_counter.contains_key("HCC137") ||
+       interaction_counter.contains_key("HCC138") ||
+       interaction_counter.contains_key("HCC139") {
+        sub_use_disorder_vals.push(1);
+    }
     diagnostic_counter.insert(&"gSubUseDisorder_V28", sub_use_disorder_vals.iter().max().unwrap());
 
-    let psychiatric_vals = vec![interaction_counter["HCC151"], 
-                                interaction_counter["HCC152"], 
-                                interaction_counter["HCC153"], 
-                                interaction_counter["HCC154"], 
-                                interaction_counter["HCC155"]];
+    let mut psychiatric_vals = vec![0];
+    if interaction_counter.contains_key("HCC151") ||
+       interaction_counter.contains_key("HCC152") ||
+       interaction_counter.contains_key("HCC153") ||
+       interaction_counter.contains_key("HCC154") ||
+       interaction_counter.contains_key("HCC155") {
+        psychiatric_vals.push(1);
+    }
     diagnostic_counter.insert(&"gPsychiatric_V28", psychiatric_vals.iter().max().unwrap());
 
-    let neuro_vals = vec![interaction_counter["HCC180"], 
-                          interaction_counter["HCC181"], 
-                          interaction_counter["HCC182"], 
-                          interaction_counter["HCC190"], 
-                          interaction_counter["HCC191"], 
-                          interaction_counter["HCC192"], 
-                          interaction_counter["HCC195"], 
-                          interaction_counter["HCC196"], 
-                          interaction_counter["HCC198"], 
-                          interaction_counter["HCC199"]];
+    let mut neuro_vals = vec![0];
+    if interaction_counter.contains_key("HCC180") ||
+       interaction_counter.contains_key("HCC181") ||
+       interaction_counter.contains_key("HCC182") ||
+       interaction_counter.contains_key("HCC190") ||
+       interaction_counter.contains_key("HCC191") ||
+       interaction_counter.contains_key("HCC192") ||
+       interaction_counter.contains_key("HCC195") ||
+       interaction_counter.contains_key("HCC196") ||
+       interaction_counter.contains_key("HCC198") ||
+       interaction_counter.contains_key("HCC199") {
+        neuro_vals.push(1);
+    } 
     diagnostic_counter.insert(&"NEURO_V28", neuro_vals.iter().max().unwrap());
 
-    let ulcer_vals = vec![interaction_counter["HCC379"], 
-                          interaction_counter["HCC380"], 
-                          interaction_counter["HCC381"], 
-                          interaction_counter["HCC382"]]; 
+    let mut ulcer_vals = vec![0];
+    if interaction_counter.contains_key("HCC379") ||
+       interaction_counter.contains_key("HCC380") ||
+       interaction_counter.contains_key("HCC381") ||
+       interaction_counter.contains_key("HCC382") {
+        ulcer_vals.push(1);
+    } 
     diagnostic_counter.insert(&"ULCER_V28", ulcer_vals.iter().max().unwrap());
 
     // Create the community model interactions
@@ -392,8 +422,12 @@ fn _apply_interactions(patient_hcc_list : &Vec<String>, is_disabled : bool) -> V
     let chr_lung_card_resp_fail_v28 = &(diagnostic_counter["CHR_LUNG_V28"] * diagnostic_counter["CARD_RESP_FAIL"]);
     interaction_counter.entry(&"CHR_LUNG_CARD_RESP_FAIL_V28").or_insert(chr_lung_card_resp_fail_v28);
 
-    let hcc238_val = &(diagnostic_counter["HF_V28"] * interaction_counter["HCC238"]);
-    interaction_counter.entry(&"HF_HCC238_V28").or_insert(hcc238_val);
+    let mut hf_hcc238_v28 = 0;
+    if interaction_counter.contains_key("HCC238") {
+        hf_hcc238_v28 = diagnostic_counter["HF_V28"] * diagnostic_counter["HCC238"];
+    } 
+    interaction_counter.entry(&"HF_HCC238_V28").or_insert(&hf_hcc238_v28);
+    
     
     let gsub_use_disorder_gpsych_v28 = &(diagnostic_counter["gSubUseDisorder_V28"] * diagnostic_counter["gPsychiatric_V28"]);
     interaction_counter.entry(&"gSubUseDisorder_gPsych_V28").or_insert(&gsub_use_disorder_gpsych_v28);
@@ -429,10 +463,13 @@ fn _apply_interactions(patient_hcc_list : &Vec<String>, is_disabled : bool) -> V
     } else if patient_hcc_list.len() >= 1 {
         let key = KEYS_FOR_NUM_PAYMENT_HCCS[patient_hcc_list.len()];
         interaction_counter.entry(key).or_insert(&1);
-
     }
+    interaction_counter.retain(|&_k, v| *v > &0);
 
     let final_interactions: Vec<String> = interaction_counter.keys().map(|x| x.to_string()).collect();
+
+    println!("{:?}", final_interactions);
+
     return final_interactions;
 }
 
@@ -513,57 +550,32 @@ HCC387 HCC397 HCC398 HCC399 HCC401 HCC402 HCC405 HCC409 HCC454 HCC463
 fn _get_community_model_score() -> HashMap::<String,f32> {
 
     // let coefficients = _get_global_raf_map();
-    let comm_regA_score = 0.0;
-    let comm_regD_score = 0.0;
+    let comm_reg_a_score = 0.0;
+    let comm_reg_d_score = 0.0;
 
     // Gather all the coefficient values for variable that apply to Community Aged Model
 
     let mut comm_scores = HashMap::<String, f32>::new();
-    comm_scores.entry("COMM_REGA".to_string()).or_insert(comm_regA_score);
-    comm_scores.entry("COMM_REGD".to_string()).or_insert(comm_regD_score);
+    comm_scores.entry("COMM_REGA".to_string()).or_insert(comm_reg_a_score);
+    comm_scores.entry("COMM_REGD".to_string()).or_insert(comm_reg_d_score);
 
     return comm_scores;
 }
 pub fn main() {
 
-    println!("In Guest code main function");
+    log("In Guest code main function");
 
-    let hcc_labels = match read_hcc_labels("./CMS-Data/PY2023/V28115L3.txt") {
-        Ok(map) => map,
-        Err(_err) => HashMap::new(),
-    };
-
-    let hcc_hiers = match read_hier("./CMS-Data/PY2023/V28115H1.TXT") {
-        Ok(map) => map,
-        Err(_err) => HashMap::new(),
-    };
-
-    let hcc_coeffs = match read_hcc_coefficients("./CMS-Data/PY2023/C2824T2N.csv") {
-        Ok(map) => map,
-        Err(_err) => HashMap::new(),
-    };
-
-    let dx_to_cc = match read_dx_to_cc("./CMS-Data/PY2023/F2823T2N_FY22FY23.TXT") {
-        Ok(map) => map,
-        Err(_err) => HashMap::new(),
-    };
-
-    let _public_inputs = PublicRAFInputs {
-        hcc_coefficients: hcc_coeffs,
-        hcc_hierarchies: hcc_hiers,
-        hcc_labels: hcc_labels,
-        dx_to_cc: dx_to_cc,
-    };
-
-    println!("Public inputs: {:?}", _public_inputs);
+    let _public_inputs: PublicRAFInputs = env::read();
+    
+    log("Retrieved public inputs");
 
     // Read in private inputs
     let _private_input: PrivateRAFInput = env::read();
 
-    println!("Private input: {:?}", _private_input);
+    log("Retrieved private input");
 
     // Iterate through hcc_coefficients and initialize the GLOBAL_RAF_MAP
-    let mut global_raf_map = _get_global_raf_map();
+    let global_raf_map = _get_global_raf_map();
     for ele in _public_inputs.hcc_coefficients.iter() {
         let label = String::from(ele.0);
         global_raf_map.entry(label).or_insert(RAFAttribute {
@@ -571,6 +583,8 @@ pub fn main() {
             is_true: false,
         });
     }
+
+    log("Initialized global raf map");
     
     // Filter the private input diagnosis codes to only those that are mapped to HCCs
     let mut hcc_list = vec![];
@@ -581,27 +595,95 @@ pub fn main() {
     }
     let flattened_hcc_list = hcc_list.into_iter().flatten().collect::<Vec<String>>();
 
+    log("Got flattened HCC list");
 
     // Apply Age & Sex edits 
     let _age_sex_map = _age_sex_v2(_private_input.age, &_private_input.sex, &_private_input.entitlement_reason_code);
+
+    log("Got age sex map ");
 
     // TODO: Apply ICD-10 edits (MCE data should be an input parameter)
 
     // Apply hierarchy to HCC list
     let final_hcc_list = _apply_hierarchy(_public_inputs.hcc_hierarchies, &flattened_hcc_list);
 
+    log("Applied hierarchy to HCC list");
+
     // Apply interactions to HCC list
     let _final_interactions = _apply_interactions(&final_hcc_list, _private_input.entitlement_reason_code == "0");
+
+    log("Applied interactions to HCC list");
 
     // Apply coefficients for each scoring model
     let comm_score = _get_community_model_score(); 
 
+    log("Got community model score");
+
     // Calculate RAF score by summing the values for each HCC
-    let mut journal = Journal {
+    let journal = Journal {
         raf_scores: comm_score,
         coefficients: HashMap::<String, f32>::new(),
     };
 
     env::commit(&journal);
+
+}
+
+
+#[test]
+fn can_apply_interactions() {
+    let mut hcc_list = vec!["HCC21".to_string(), "HCC38".to_string(), "HCC221".to_string(), "HCC139".to_string()];
+    let mut is_disabled = true;
+    let first_interactions = _apply_interactions(&hcc_list, is_disabled);
+
+    // CANCER_V28_DISABL should be present
+    assert!(first_interactions.contains(&"DISABLED_CANCER_V28".to_string()));
+    assert!(first_interactions.contains(&"DIABETES_HF_V28".to_string()));
+    assert!(!first_interactions.contains(&"gSubUseDisorder_gPsych_V28".to_string()));
+    assert!(first_interactions.contains(&"D4".to_string()));
+
+    hcc_list = vec!["HCC21".to_string(), "HCC198".to_string(), "HCC221".to_string(), "HCC139".to_string()];
+    is_disabled = false;
+    let second_interactions = _apply_interactions(&hcc_list, is_disabled);
+    assert!(!second_interactions.contains(&"gSubUseDisorder_gPsych_V28".to_string()));
+    assert!(!second_interactions.contains(&"DISABLED_CANCER_V28".to_string()));
+}
+
+#[test]
+fn can_apply_hierarchy() {
+    let mut hiers = HashMap::<String, Vec<String>>::new();
+    hiers
+        .entry("HCC154".to_string())
+        .or_insert(vec!["HCC155".to_string()]);
+    hiers
+        .entry("HCC180".to_string())
+        .or_insert(vec!["HCC181".to_string(),
+                                "HCC182".to_string(),
+                                "HCC253".to_string(),
+                                "HCC254".to_string()]);
+    hiers
+        .entry("HCC17".to_string())
+        .or_insert(vec!["HCC18".to_string(),
+                                "HCC19".to_string(),
+                                "HCC20".to_string(),
+                                "HCC21".to_string(),
+                                "HCC22".to_string(),
+                                "HCC23".to_string()]);    
+
+    hiers 
+        .entry("HCC222".to_string())
+        .or_insert(vec!["HCC223".to_string(),
+                                "HCC224".to_string(),
+                                "HCC225".to_string(),
+                                "HCC226".to_string(),
+                                "HCC227".to_string()]);
+
+    let hcc_list = vec!["HCC154".to_string(), "HCC155".to_string(), "HCC17".to_string(), "HCC19".to_string()];
+    let final_hcc_list = _apply_hierarchy(hiers, &hcc_list);
+    assert!(final_hcc_list.contains(&"HCC154".to_string()));
+    assert!(!final_hcc_list.contains(&"HCC155".to_string()));
+    assert!(final_hcc_list.contains(&"HCC17".to_string()));
+    assert!(!final_hcc_list.contains(&"HCC19".to_string()));
+
 
 }
