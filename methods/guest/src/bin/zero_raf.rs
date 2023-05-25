@@ -1,7 +1,7 @@
 use risc0_zkvm::guest::env;
 use risc0_zkvm::guest::env::log;
 risc0_zkvm::guest::entry!(main);
-
+use zero_raf_core::utils::{build_ne_reg_variable_list};
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput, Journal};
 use std::collections::HashMap;
 use std::sync::Once;
@@ -68,7 +68,7 @@ fn _get_global_raf_map() -> &'static mut HashMap<String, RAFAttribute> {
 // This function defines the Age & Sex grouping for the person with the given age, sex,
 // and original reason enrolled in Medicare. 
 // *Translated from AGESEXV2.TXT for more details*
-fn _age_sex_v2(age: i32, sex: &str, orec: &str) -> HashMap<String, bool> {
+fn _age_sex_v2(age: i32, sex: &str, orec: &str) -> Vec<String> {
     
     // Define a map with keys associated with the different groupings based on AGE, SEX, and OREC
     let mut age_sex_map = HashMap::<String, bool>::new();
@@ -80,47 +80,48 @@ fn _age_sex_v2(age: i32, sex: &str, orec: &str) -> HashMap<String, bool> {
         "F0_34", "F35_44", "F45_54", "F55_59", "F60_64", "F65_69", "F70_74", "F75_79", "F80_84", "F85_89", "F90_94", "F95_GT",
         "M0_34", "M35_44", "M45_54", "M55_59", "M60_64", "M65_69", "M70_74", "M75_79", "M80_84", "M85_89", "M90_94", "M95_GT"
     ];
-    for key in enrollee_keys { age_sex_map.insert(key.to_string(), false); }
-    let mut cat_key = String::from("F");
-    if sex == "M" { cat_key = String::from("M"); }
+    for key in &enrollee_keys { age_sex_map.insert(key.to_string(), false); }
+    let mut key_index = enrollee_keys.len();
     if age <= 34 {
-        cat_key.push_str("0_34");
+        key_index = 0;
     } 
     else if age >= 35 && age < 45 {
-        cat_key = cat_key + "35_44";
+        key_index = 1;
     }
     else if age >= 45 && age < 55 {
-        cat_key = cat_key + "45_54";
+        key_index = 2;
     }
     else if age >= 55 && age < 60 {
-        cat_key = cat_key + "55_59";
+        key_index = 3;
     }
     else if age >= 60 && age < 65 {
-        cat_key = cat_key + "60_64";
+        key_index = 4;
     }
     else if age >= 65 && age < 70 {
-        cat_key = cat_key + "65_69";
+        key_index = 5;
     }
     else if age >= 70 && age < 75 {
-        cat_key = cat_key + "70_74";
+        key_index = 6;
     }
     else if age >= 75 && age < 80 {
-        cat_key = cat_key + "75_79";
+        key_index = 7;
     }
     else if age >= 80 && age < 85 {
-        cat_key = cat_key + "80_84";
+        key_index = 8;
     }
     else if age >= 85 && age < 90 {
-        cat_key = cat_key + "85_89";
+        key_index = 9;
     }
     else if age >= 90 && age < 95 {
-        cat_key = cat_key + "90_94";
+        key_index = 10;
     }
     else if age >= 95 {
-        cat_key = cat_key + "95_GT";
+        key_index = 11;
     }
+    if sex == "M" { key_index += 12; }
 
-    let val = age_sex_map.get_mut(&cat_key).unwrap();
+    let cat_key = enrollee_keys[key_index];
+    let val = age_sex_map.get_mut(cat_key).unwrap();
     *val = true;
     
     // New Enrollee keys: NEF0_34  NEF35_44 NEF45_54 NEF55_59 NEF60_64
@@ -135,66 +136,68 @@ fn _age_sex_v2(age: i32, sex: &str, orec: &str) -> HashMap<String, bool> {
         "NEF0_34", "NEF35_44", "NEF45_54", "NEF55_59", "NEF60_64", "NEF65", "NEF66", "NEF67", "NEF68", "NEF69", "NEF70_74", "NEF75_79", "NEF80_84", "NEF85_89", "NEF90_94", "NEF95_GT",
         "NEM0_34", "NEM35_44", "NEM45_54", "NEM55_59", "NEM60_64", "NEM65", "NEM66", "NEM67", "NEM68", "NEM69", "NEM70_74", "NEM75_79", "NEM80_84", "NEM85_89", "NEM90_94", "NEM95_GT"
     ];
-    for key in new_enrollee_keys { age_sex_map.insert(key.to_string(), false); }
-    let mut ne_cat_key = String::from("NEF");
-    if sex == "M" { ne_cat_key = String::from("NEM"); }
+    for key in &new_enrollee_keys { age_sex_map.insert(key.to_string(), false); }
+    let mut key_index = new_enrollee_keys.len();
+
     if age <= 34 {
-        ne_cat_key = ne_cat_key + "0_34";
+        key_index = 0;
     } 
     else if age >= 35 && age < 45 {
-        ne_cat_key = ne_cat_key + "35_44";
+        key_index = 1;
     }
     else if age >= 45 && age < 55 {
-        ne_cat_key = ne_cat_key + "45_54";
+        key_index = 2;
     }
     else if age >= 55 && age < 60 {
-        ne_cat_key = ne_cat_key + "55_59";
+        key_index = 3;
     }
     else if age >= 60 && age < 65 {
-        ne_cat_key = ne_cat_key + "60_64";
+        key_index = 4;
     }
     // if age == 64 and orec is not 0 
-    else if age == 64 && orec != "0" {
-        ne_cat_key = ne_cat_key + "60_64";
+    if age == 64 && orec != "0" {
+        key_index = 4;
     }
-    else if age == 64 && orec == "1" {
-        ne_cat_key = ne_cat_key + "65";
+    else if age == 64 && orec == "0" {
+        key_index = 5;
     }
     else if age == 65 {
-        ne_cat_key = ne_cat_key + "65";
+        key_index = 5;   
     }
     else if age == 66 {
-        ne_cat_key = ne_cat_key + "66";
+        key_index = 6;
     }
     else if age == 67 {
-        ne_cat_key = ne_cat_key + "67";
+        key_index = 7
     }
     else if age == 68 {
-        ne_cat_key = ne_cat_key + "68";
+        key_index = 8;
     }
     else if age == 69 {
-        ne_cat_key = ne_cat_key + "69";
+        key_index = 9;
     }
     else if age >= 70 && age < 75 {
-        ne_cat_key = ne_cat_key + "70_74";
+        key_index = 10;
     }
     else if age >= 75 && age < 80 {
-        ne_cat_key = ne_cat_key + "75_79";
+        key_index = 11;
     }
     else if age >= 80 && age < 85 {
-        ne_cat_key = ne_cat_key + "80_84";
+        key_index = 12;
     }
     else if age >= 85 && age < 90 {
-        ne_cat_key = ne_cat_key + "85_89";
+        key_index = 13;
     }
     else if age >= 90 && age < 95 {
-        ne_cat_key = ne_cat_key + "90_94";
+        key_index = 14;
     }
     else if age >= 95 {
-        ne_cat_key = ne_cat_key + "95_GT";
+        key_index = 15;
     }
 
-    let ne_val = age_sex_map.get_mut(&ne_cat_key).unwrap();
+    if sex == "M" { key_index += 16; }
+    let ne_cat_key = new_enrollee_keys[key_index];
+    let ne_val = age_sex_map.get_mut(ne_cat_key).unwrap();
     *ne_val = true;
 
     //Other keys ORIGDS  - originally disabled dummy variable
@@ -207,7 +210,10 @@ fn _age_sex_v2(age: i32, sex: &str, orec: &str) -> HashMap<String, bool> {
     age_sex_map.insert(String::from("DISABL"), disabl);
     age_sex_map.insert(String::from("ORIGDS"), orec == "1" && !disabl);
 
-    return age_sex_map;
+    age_sex_map.retain(|_, v| *v == true);
+
+    return age_sex_map.keys().map(|s| s.to_string()).collect();
+
 }
 
 
@@ -221,7 +227,7 @@ fn _age_sex_v2(age: i32, sex: &str, orec: &str) -> HashMap<String, bool> {
 //                 ARRAY C(&N_CC)   &CClist
 //                 ARRAY HCC(&N_CC) &HCClist
 //                -format ICD to CC creates only &N_CC CMS CCs
-fn _apply_hierarchy(model_hcc_hiers: HashMap<String, Vec<String>>, patient_hcc_list: &Vec<String>) -> Vec<String> {
+fn _apply_hierarchy(model_hcc_hiers: &HashMap<String, Vec<String>>, patient_hcc_list: &Vec<String>) -> Vec<String> {
     // Create an initial index with the patient HCC list values mapped to true
 
     let mut superior_hccs: Vec<String> = vec![];
@@ -547,20 +553,145 @@ HCC387 HCC397 HCC398 HCC399 HCC401 HCC402 HCC405 HCC409 HCC454 HCC463
     %&SCOREMAC(PVAR=SCORE_COMMUNITY_PBA, RLIST=&COMM_REGA, CPREF=CPA_);
     %&SCOREMAC(PVAR=SCORE_COMMUNITY_PBD, RLIST=&COMM_REGD, CPREF=CPD_);
 */
-fn _get_community_model_score() -> HashMap::<String,f32> {
 
-    // let coefficients = _get_global_raf_map();
-    let comm_reg_a_score = 0.0;
-    let comm_reg_d_score = 0.0;
+static COMM_REGA: [&str; 30] = ["F65_69", "F70_74", "F75_79", "F80_84", "F85_89", "F90_94", "F95_GT",
+                                "M65_69", "M70_74", "M75_79", "M80_84", "M85_89", "M90_94", "M95_GT",
+                                "DIABETES_HF_V28", "HF_CHR_LUNG_V28", "HF_KIDNEY_V28", 
+                                "CHR_LUNG_CARD_RESP_FAIL_V28", "HF_HCC238_V28", "gSubUseDisorder_gPsych_V28",
+                                "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10P"];
 
-    // Gather all the coefficient values for variable that apply to Community Aged Model
+fn _get_community_model_reg_a_score(model: String, private_input: &PrivateRAFInput, public_inputs: &PublicRAFInputs, all_raf_attributes: &Vec<String>) -> f32 {
 
-    let mut comm_scores = HashMap::<String, f32>::new();
-    comm_scores.entry("COMM_REGA".to_string()).or_insert(comm_reg_a_score);
-    comm_scores.entry("COMM_REGD".to_string()).or_insert(comm_reg_d_score);
+    let global_map = _get_global_raf_map();
+    let mut comm_reg_a_score = 0.0;
+    
+    // Gather all the coefficient values for variable that apply to Community Aged Model A
+    // 1. Age Sex Variables:  F65_69, F70_74, F75_79, F80_84, F85_89, F90_94, F95_GT
+    //                        M65_69, M70_74, M75_79, M80_84, M85_89, M90_94, M95_GT
+    // 2. ORIG_INT:  OriginallyDisabled_Female, OriginallyDisabled_Male
+    // 3. HCCList: &HCCV28_list115;
+    // 4. Interaction Vars:  DIABETES_HF_V28, HF_CHR_LUNG_V28, HF_KIDNEY_V28, CHR_LUNG_CARD_RESP_FAIL_V28
+    //                       HF_HCC238_V28, gSubUseDisorder_gPsych_V28
+    // 5. Payment Variables:  D1 D2 D3 D4 D5 D6 D7 D8 D9 D10P                                                                                
+   
+    let mut raf_keys = all_raf_attributes
+                                                    .iter()
+                                                    .filter(|x| COMM_REGA.contains(&x.as_str()) || 
+                                                                          public_inputs.hcc_labels.contains_key(*x))
+                                                    .map(|x| format!("{}_{}", model, x))
+                                                    .collect::<Vec<String>>();
 
-    return comm_scores;
+    if all_raf_attributes.contains(&String::from("ORIGDS")) {
+        let mut origds_key = format!("{}_OriginallyDisabled_Female", model);
+        if private_input.sex == "M" {
+            origds_key = format!("{}_OriginallyDisabled_Male", model);
+        }
+        raf_keys.push(origds_key);
+    }
+                                            
+    raf_keys.iter_mut().for_each(|x| {
+        if global_map.contains_key(x) {
+            comm_reg_a_score += global_map.get(x).unwrap().coefficient;
+            global_map.get_mut(x).unwrap().is_true = true;
+        }
+    });
+    
+    return comm_reg_a_score;
 }
+
+static COMM_REGD: [&str; 26] = ["F0_34", "F35_44", "F45_54", "F55_59", "F60_64",
+                                "M0_34", "M35_44", "M45_54", "M55_59", "M60_64",
+                                "DIABETES_HF_V28", "HF_CHR_LUNG_V28", "HF_KIDNEY_V28", 
+                                "CHR_LUNG_CARD_RESP_FAIL_V28", "HF_HCC238_V28", "gSubUseDisorder_gPsych_V28",
+                                "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10P"];
+
+fn _get_community_model_reg_d_score(model: String, public_inputs: &PublicRAFInputs, all_raf_attributes: &Vec<String>) -> f32 {
+
+    let global_map = _get_global_raf_map();
+    let mut comm_reg_d_score = 0.0;
+    
+    // Gather all the coefficient values for variable that apply to Community Disabled Model D
+    // 1. Age Sex Variable:  F0_34, F35_44, F45_54, F55_59 F60_64
+    //                       M0_34  M35_44 M45_54 M55_59 M60_64
+    // 2. HCCList: &HCCV28_list115;
+    // 3. Interaction Vars: DIABETES_HF_V28, HF_CHR_LUNG_V28, HF_KIDNEY_V28, CHR_LUNG_CARD_RESP_FAIL_V28
+    //                      HF_HCC238_V28, gSubUseDisorder_gPsych_V28
+    // 4. Payment Variables:  D1 D2 D3 D4 D5 D6 D7 D8 D9 D10P                                                                            
+   
+    let mut raf_keys = all_raf_attributes
+                                                    .iter()
+                                                    .filter(|x| COMM_REGD.contains(&x.as_str()) || 
+                                                                          public_inputs.hcc_labels.contains_key(*x))
+                                                    .map(|x| format!("{}_{}", model, x))
+                                                    .collect::<Vec<String>>();
+
+    raf_keys.iter_mut().for_each(|x| {
+        if global_map.contains_key(x) {
+            comm_reg_d_score += global_map.get(x).unwrap().coefficient;
+            global_map.get_mut(x).unwrap().is_true = true;
+        }
+    });
+   
+    return comm_reg_d_score;
+
+
+} 
+
+//  %*variables for Institutional regression;
+// %LET INST_REG = %STR(&AGESEXV
+//    LTIMCAID  ORIGDS
+//    &HCClist
+//    &INTERRACI_VARS
+//    &ADDZ);
+
+static INST_REG: [&str; 45] = ["F0_34", "F35_44", "F45_54", "F55_59", "F60_64", "F65_69", "F70_74", "F75_79", "F80_84", "F85_89", "F90_94", "F95_GT",
+                               "M0_34", "M35_44", "M45_54", "M55_59", "M60_64", "M65_69", "M70_74", "M75_79", "M80_84", "M85_89", "M90_94", "M95_GT",
+                               "LTIMCAID", "ORIGDS", "DIABETES_HF_V28", "HF_CHR_LUNG_V28", "HF_KIDNEY_V28", "CHR_LUNG_CARD_RESP_FAIL_V28", "DISABLED_CANCER_V28",
+                               "DISABLED_NEURO_V28", "DISABLED_HF_V28", "DISABLED_CHR_LUNG_V28", "DISABLED_ULCER_V28",
+                               "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10P"];
+
+fn _get_institutional_reg_score(model: String, public_inputs: &PublicRAFInputs, all_raf_attributes: &Vec<String>) -> f32 {
+    let global_map = _get_global_raf_map();
+    let mut inst_reg_score = 0.0;
+
+    let mut raf_keys = all_raf_attributes
+                                                    .iter()
+                                                    .filter(|x| INST_REG.contains(&x.as_str()) || 
+                                                                          public_inputs.hcc_labels.contains_key(*x))
+                                                    .map(|x| format!("{}_{}", model, x))
+                                                    .collect::<Vec<String>>();
+
+    raf_keys.iter_mut().for_each(|x| {
+        if global_map.contains_key(x) {
+            inst_reg_score += global_map.get(x).unwrap().coefficient;
+            global_map.get_mut(x).unwrap().is_true = true;
+        }
+    });
+
+    return inst_reg_score;
+}
+
+fn _get_new_enrollee_score(model: String, all_raf_attributes: &Vec<String>) -> f32 {
+    let global_map = _get_global_raf_map();
+    let mut new_enrollee_score = 0.0;
+    let new_enrollee_vars = build_ne_reg_variable_list();
+
+    let mut raf_keys = all_raf_attributes
+                                                    .iter()
+                                                    .filter(|x| new_enrollee_vars.contains(*x))
+                                                    .map(|x| format!("{}_{}", model, x))
+                                                    .collect::<Vec<String>>();
+
+    raf_keys.iter_mut().for_each(|x| {
+        if global_map.contains_key(x) {
+            new_enrollee_score += global_map.get(x).unwrap().coefficient;
+            global_map.get_mut(x).unwrap().is_true = true;
+        }
+    });
+
+    return new_enrollee_score;    
+}
+
 pub fn main() {
 
     log("In Guest code main function");
@@ -588,9 +719,9 @@ pub fn main() {
     
     // Filter the private input diagnosis codes to only those that are mapped to HCCs
     let mut hcc_list = vec![];
-    for dx in _private_input.diagnosis_codes {
-        if _public_inputs.dx_to_cc.contains_key(&dx) {
-            hcc_list.push(_public_inputs.dx_to_cc.get(&dx).unwrap().clone());
+    for dx in &_private_input.diagnosis_codes {
+        if _public_inputs.dx_to_cc.contains_key(dx) {
+            hcc_list.push(_public_inputs.dx_to_cc.get(dx).unwrap().clone());
         }
     }
     let flattened_hcc_list = hcc_list.into_iter().flatten().collect::<Vec<String>>();
@@ -598,30 +729,72 @@ pub fn main() {
     log("Got flattened HCC list");
 
     // Apply Age & Sex edits 
-    let _age_sex_map = _age_sex_v2(_private_input.age, &_private_input.sex, &_private_input.entitlement_reason_code);
+    let mut _age_sex_map = _age_sex_v2(_private_input.age, &_private_input.sex, &_private_input.entitlement_reason_code);
+    if _private_input.long_term_institutionalized {
+        _age_sex_map.push(String::from("LTIMCAID"));
+    }
 
     log("Got age sex map ");
 
     // TODO: Apply ICD-10 edits (MCE data should be an input parameter)
 
     // Apply hierarchy to HCC list
-    let final_hcc_list = _apply_hierarchy(_public_inputs.hcc_hierarchies, &flattened_hcc_list);
+    let _final_hcc_list = _apply_hierarchy(&_public_inputs.hcc_hierarchies, &flattened_hcc_list);
 
     log("Applied hierarchy to HCC list");
 
     // Apply interactions to HCC list
-    let _final_interactions = _apply_interactions(&final_hcc_list, _private_input.entitlement_reason_code == "0");
+    let _final_interactions = _apply_interactions(&_final_hcc_list, &_private_input.entitlement_reason_code == "0");
 
     log("Applied interactions to HCC list");
 
-    // Apply coefficients for each scoring model
-    let comm_score = _get_community_model_score(); 
+    log("Collect all RAF attributes into a single list");
+    let mut all_raf_attributes = vec![];
+    all_raf_attributes.extend(_age_sex_map.iter().cloned());
+    all_raf_attributes.extend(_final_hcc_list.iter().cloned());
+    all_raf_attributes.extend(_final_interactions.iter().cloned());
 
-    log("Got community model score");
+    // Apply coefficients for each scoring model
+    // %&SCOREMAC(PVAR=SCORE_COMMUNITY_NA,  RLIST=&COMM_REGA, CPREF=CNA_);
+    // %&SCOREMAC(PVAR=SCORE_COMMUNITY_ND,  RLIST=&COMM_REGD, CPREF=CND_);
+    // %&SCOREMAC(PVAR=SCORE_COMMUNITY_FBA, RLIST=&COMM_REGA, CPREF=CFA_);
+    // %&SCOREMAC(PVAR=SCORE_COMMUNITY_FBD, RLIST=&COMM_REGD, CPREF=CFD_);
+    // %&SCOREMAC(PVAR=SCORE_COMMUNITY_PBA, RLIST=&COMM_REGA, CPREF=CPA_);
+    // %&SCOREMAC(PVAR=SCORE_COMMUNITY_PBD, RLIST=&COMM_REGD, CPREF=CPD_);
+
+    let community_na_score = _get_community_model_reg_a_score("CNA".to_string(), &_private_input, &_public_inputs, &all_raf_attributes); 
+    let community_nd_score = _get_community_model_reg_d_score("CND".to_string(), &_public_inputs, &all_raf_attributes);
+    let community_fba_score = _get_community_model_reg_a_score("CFA".to_string(), &_private_input, &_public_inputs, &all_raf_attributes);
+    let community_fbd_score = _get_community_model_reg_d_score("CFD".to_string(), &_public_inputs, &all_raf_attributes);
+    let community_pba_score = _get_community_model_reg_a_score("CPA".to_string(), &_private_input, &_public_inputs, &all_raf_attributes);
+    let community_pbd_score = _get_community_model_reg_d_score("CPD".to_string(), &_public_inputs, &all_raf_attributes);
+
+    log("Got community model scores");
+
+    // %&SCOREMAC(PVAR=SCORE_INSTITUTIONAL, RLIST=&INST_REG, CPREF=INS_);
+    // %&SCOREMAC(PVAR=SCORE_NEW_ENROLLEE, RLIST=&NE_REG, CPREF=NE_);
+    // %&SCOREMAC(PVAR=SCORE_SNP_NEW_ENROLLEE, RLIST=&NE_REG, CPREF=SNPNE_);
+
+    let institutional_score = _get_institutional_reg_score("INS".to_string(), &_public_inputs, &all_raf_attributes);
+    let new_enrollee_score = _get_new_enrollee_score("NE".to_string(), &all_raf_attributes);
+    let snp_new_enrollee_score = _get_new_enrollee_score("SNPNE".to_string(), &all_raf_attributes);
+
+    // Normalize the scores
+    let mut all_raf_scores = HashMap::<String, f32>::new();
+    all_raf_scores.insert("SCORE_COMMUNITY_NA".to_string(), community_na_score * _public_inputs.norm_factor);
+    all_raf_scores.insert("SCORE_COMMUNITY_ND".to_string(), community_nd_score * _public_inputs.norm_factor);
+    all_raf_scores.insert("SCORE_COMMUNITY_FBA".to_string(), community_fba_score * _public_inputs.norm_factor);
+    all_raf_scores.insert("SCORE_COMMUNITY_FBD".to_string(), community_fbd_score * _public_inputs.norm_factor);
+    all_raf_scores.insert("SCORE_COMMUNITY_PBA".to_string(), community_pba_score * _public_inputs.norm_factor);
+    all_raf_scores.insert("SCORE_COMMUNITY_PBD".to_string(), community_pbd_score * _public_inputs.norm_factor);
+    all_raf_scores.insert("SCORE_INSTITUTIONAL".to_string(), institutional_score * _public_inputs.norm_factor);
+    all_raf_scores.insert("SCORE_NEW_ENROLLEE".to_string(), new_enrollee_score * _public_inputs.norm_factor);
+    all_raf_scores.insert("SCORE_SNP_NEW_ENROLLEE".to_string(), snp_new_enrollee_score * _public_inputs.norm_factor);
+
 
     // Calculate RAF score by summing the values for each HCC
     let journal = Journal {
-        raf_scores: comm_score,
+        raf_scores: all_raf_scores,
         coefficients: HashMap::<String, f32>::new(),
     };
 
@@ -679,11 +852,118 @@ fn can_apply_hierarchy() {
                                 "HCC227".to_string()]);
 
     let hcc_list = vec!["HCC154".to_string(), "HCC155".to_string(), "HCC17".to_string(), "HCC19".to_string()];
-    let final_hcc_list = _apply_hierarchy(hiers, &hcc_list);
+    let final_hcc_list = _apply_hierarchy(&hiers, &hcc_list);
     assert!(final_hcc_list.contains(&"HCC154".to_string()));
     assert!(!final_hcc_list.contains(&"HCC155".to_string()));
     assert!(final_hcc_list.contains(&"HCC17".to_string()));
     assert!(!final_hcc_list.contains(&"HCC19".to_string()));
 
+
+}
+
+#[test]
+fn can_build_age_sex_map() {
+    let mut age = 65;
+    let mut sex = "M";
+    let mut orec = "1";
+    let mut age_sex_map = _age_sex_v2(age, sex, orec);
+
+    assert_eq!(age_sex_map.len(), 3);
+
+    assert!(age_sex_map.contains(&String::from("M65_69"))); // Should be true
+    assert!(!age_sex_map.contains(&String::from("F65_69"))); // Should be false
+    assert!(age_sex_map.contains(&String::from("NEM65"))); // Should be true
+
+    age = 64;
+    sex = "F";
+    orec = "1";
+    age_sex_map = _age_sex_v2(age, sex, orec);
+
+    assert!(age_sex_map.contains(&String::from("F60_64"))); // Should be true
+    assert!(!age_sex_map.contains(&String::from("NEF65"))); // Should be false
+    assert!(age_sex_map.contains(&String::from("NEF60_64"))); // Should be true
+
+
+    orec = "0";
+    age_sex_map = _age_sex_v2(age, sex, orec);
+
+    assert!(age_sex_map.contains(&String::from("NEF65"))); // Should be true
+
+
+}
+
+#[test]
+fn can_generate_community_model_a_score() {
+
+    let _private_input = PrivateRAFInput {
+        age: 75,
+        diagnosis_codes: vec![],
+        sex: String::from("M"),
+        eligibility_code: String::from("0"),
+        entitlement_reason_code: String::from("0"),
+        medicaid_status: false,
+        long_term_institutionalized: false,
+    };
+
+    let all_raf_attributes: Vec<String> = vec!["M75_79".to_string(), "NEM75_79".to_string(), "DIABETES_HF_V28".to_string(), "D3".to_string()];
+
+    let mut hcc_coefficients = HashMap::<String, f32>::new();
+    hcc_coefficients.insert("CNA_M75_79".to_string(), 0.50);
+    hcc_coefficients.insert("CNA_NEM75_79".to_string(), 0.0);
+    hcc_coefficients.insert("CNA_DIABETES_HF_V28".to_string(), 0.11);
+    hcc_coefficients.insert("CNA_D3".to_string(), 0.0);
+    hcc_coefficients.insert("CNA_HF_HCC238_V28".to_string(), 0.08);
+    hcc_coefficients.insert("CNA_HCC379".to_string(), 1.97);
+    hcc_coefficients.insert("CNA_HCC380".to_string(), 1.08);
+    hcc_coefficients.insert("CNA_HCC381".to_string(), 1.08);
+    hcc_coefficients.insert("CNA_HCC382".to_string(), 0.84);       
+
+    let mut hcc_labels = HashMap::<String, String>::new(); 
+    hcc_labels.insert("HCC1".to_string(), "HIV/AIDS".to_string());
+    hcc_labels.insert("HCC2".to_string(), "Septicemia, Sepsis, Systemic Inflammatory Response Syndrome/Shock".to_string());
+    hcc_labels.insert("HCC6".to_string(), "Opportunistic Infections".to_string());
+    hcc_labels.insert("HCC17".to_string(), "Cancer Metastatic to Lung, Liver, Brain, and Other Organs; Acute Myeloid Leukemia Except Promyelocytic ".to_string());
+    hcc_labels.insert("HCC18".to_string(), "Cancer Metastatic to Bone, Other and Unspecified Metastatic Cancer; Acute Leukemia Except Myeloid ".to_string());
+    hcc_labels.insert("HCC19".to_string(), "Myelodysplastic Syndromes, Multiple Myeloma, and Other Cancers ".to_string());
+    hcc_labels.insert("HCC21".to_string(), "Lymphoma and Other Cancers ".to_string());
+    hcc_labels.insert("HCC22".to_string(), "Bladder, Colorectal, and Other Cancers ".to_string());
+    hcc_labels.insert("HCC23".to_string(), "Prostate, Breast, and Other Cancers and Tumors ".to_string());
+    hcc_labels.insert("HCC20".to_string(), "Lung and Other Severe Cancers ".to_string());
+    hcc_labels.insert("HCC35".to_string(), "Pancreas Transplant Status".to_string());
+    hcc_labels.insert("HCC36".to_string(), "Diabetes with Severe Acute Complications".to_string());
+    hcc_labels.insert("HCC37".to_string(), "Diabetes with Chronic Complications".to_string());
+    hcc_labels.insert("HCC38".to_string(), "Diabetes with Glycemic, Unspecified, or No Complications ".to_string());
+    hcc_labels.insert("HCC48".to_string(), "Morbid Obesity".to_string());
+
+    let mut hiers = HashMap::<String, Vec<String>>::new();
+    hiers
+        .entry("HCC154".to_string())
+        .or_insert(vec!["HCC155".to_string()]);
+
+    let mut dx_to_cc = HashMap::<String, Vec<String>>::new();
+    dx_to_cc
+        .entry("B20".to_string())
+        .or_insert(vec!["HCC1".to_string(), "HCC6".to_string()]);
+
+    let _public_input = PublicRAFInputs {
+        hcc_coefficients: hcc_coefficients,
+        hcc_labels: hcc_labels,
+        hcc_hierarchies: hiers,
+        dx_to_cc: dx_to_cc,
+        norm_factor: 1.0,
+    };
+
+    let global_raf_map = _get_global_raf_map();
+    for ele in _public_input.hcc_coefficients.iter() {
+        let label = String::from(ele.0);
+        global_raf_map.entry(label).or_insert(RAFAttribute {
+            coefficient: *ele.1,
+            is_true: false,
+        });
+    }
+
+    let score_community_na = _get_community_model_reg_a_score("CNA".to_string(), &_private_input, &_public_input, &all_raf_attributes);
+
+    assert_eq!(score_community_na, 0.61);
 
 }

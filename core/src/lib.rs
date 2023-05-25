@@ -17,6 +17,9 @@ pub struct PublicRAFInputs {
 
     // Mapping of ICD-10 codes to HCCs published by CMS
     pub dx_to_cc: HashMap<String, Vec<String>>,
+
+    // Normalization factor
+    pub norm_factor: f32,
 }
 
 /// Private data used in Guest to calculate RAF score for a patient
@@ -39,6 +42,9 @@ pub struct PrivateRAFInput {
 
     // Boolean indicating Medicaid status
     pub medicaid_status:    bool,
+
+    // Boolean indicating whether the patient is institutionalized
+    pub long_term_institutionalized: bool,
 
 }
 

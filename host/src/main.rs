@@ -53,6 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         hcc_hierarchies: hcc_hiers,
         hcc_labels: hcc_labels,
         dx_to_cc: dx_to_cc,
+        norm_factor: 1.0,
     };
 
     let _private_input = PrivateRAFInput {
@@ -62,9 +63,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         eligibility_code: "CNA".to_string(),
         entitlement_reason_code: "1".to_string(),
         medicaid_status: false,
+        long_term_institutionalized: false,
     };
 
-    println!("About to serialize private inputs");
+    println!("About to serialize private & public inputs");
 
     let receipt = raf(&_private_input, &_public_inputs);
     receipt.verify(ZERO_RAF_ID).unwrap();
@@ -171,6 +173,7 @@ fn can_serialize_private_input() {
         eligibility_code: "CNA".to_string(),
         entitlement_reason_code: "1".to_string(),
         medicaid_status: false,
+        long_term_institutionalized: false,
     };
 
     println!("About to serialize private inputs");

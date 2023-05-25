@@ -126,6 +126,38 @@ pub fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv
     Ok(map)
 }
 
+pub fn build_ne_reg_variable_list() -> Vec<String> {
+
+    let mut ne_reg_variables = vec![];
+
+    let le_65_age_segments = vec!["NEF0_34", "NEF35_44", "NEF45_54", "NEF55_59", "NEF60_64", "NEM0_34", "NEM35_44", "NEM45_54", "NEM55_59", "NEM60_64"];
+    let ge_65_age_segments = vec!["NEF65", "NEF66", "NEF67", "NEF68", "NEF69", "NEF70_74", "NEF75_79", "NEF80_84", "NEF85_89", "NEF90_94", "NEF95_GT", 
+                                             "NEM65", "NEM66", "NEM67", "NEM68", "NEM69", "NEM70_74", "NEM75_79", "NEM80_84", "NEM85_89", "NEM90_94", "NEM95_GT"];
+
+
+    let left_permutations = vec!["NMCAID", "MCAID"];
+    let right_permutations = vec!["ORIGDS", "NORIGDS"];
+
+    for age_group in ge_65_age_segments {
+        for left_perm in &left_permutations {
+            for right_perm in &right_permutations {
+                println!("{}_{}_{}", left_perm, right_perm, age_group);
+                ne_reg_variables.push(format!("{}_{}_{}", left_perm, right_perm, age_group));
+            }
+        }
+    }
+
+    for age_group in le_65_age_segments {
+        for left_perm in &left_permutations {
+            println!("{}_NORIGDS_{}", left_perm, age_group);
+            ne_reg_variables.push(format!("{}_NORIGDS_{}", left_perm, age_group));
+        }
+    }
+
+    return ne_reg_variables;
+
+}
+
 #[test]
 fn can_locate_cms_data_dir() {
     let path = get_cms_data_dir("PY2023");
@@ -211,4 +243,11 @@ fn can_build_dx_to_cc_from_file() {
 
     dx = dx2cc.get("B4481").unwrap();
     assert!(dx.contains(&"HCC280".to_string()));
+}
+
+#[test]
+fn can_build_ne_reg_variables() {
+    let ne_reg_variables = build_ne_reg_variable_list();
+    assert!(!ne_reg_variables.contains(&"MCAID_ORIGDS_NEF0_34".to_string()));
+    assert_eq!(ne_reg_variables.len(), 108);
 }
