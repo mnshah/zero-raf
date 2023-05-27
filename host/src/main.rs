@@ -68,7 +68,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("About to serialize private & public inputs");
 
-    let receipt = raf(&_private_input, &_public_inputs);
+    let receipt: SessionReceipt = raf(&_private_input, &_public_inputs);
+
+    println!("Receipt: {:?}", receipt);
+
     receipt.verify(ZERO_RAF_ID).unwrap();
 
     // prover.add_input_u32_slice(&serde::to_vec(&private_input)?);
@@ -111,16 +114,21 @@ fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> Ses
     // Make the Executor.
     let mut exec = Executor::from_elf(env, ZERO_RAF_ELF).unwrap();
 
+    println!("Created executor for the guest program.");
+
     // Run the executor to produce a session.
     let session = exec.run().unwrap();
 
+    println!("Created session for the guest program.");
 
     // // Prove the session to produce a receipt.
-    return session.prove().unwrap();
+    println!("Running prover...");
+    let receipt = session.prove().unwrap();
+
     // prover.add_input_u32_slice(&to_vec(public_inputs).unwrap());
     // prover.add_input_u32_slice(&to_vec(private_inputs).unwrap());
     // let receipt = prover.run().unwrap();
-    // return receipt;
+    return receipt;
 
 }
 

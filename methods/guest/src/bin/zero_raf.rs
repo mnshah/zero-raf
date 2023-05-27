@@ -474,8 +474,6 @@ fn _apply_interactions(patient_hcc_list : &Vec<String>, is_disabled : bool) -> V
 
     let final_interactions: Vec<String> = interaction_counter.keys().map(|x| x.to_string()).collect();
 
-    println!("{:?}", final_interactions);
-
     return final_interactions;
 }
 
@@ -779,6 +777,8 @@ pub fn main() {
     let new_enrollee_score = _get_new_enrollee_score("NE".to_string(), &all_raf_attributes);
     let snp_new_enrollee_score = _get_new_enrollee_score("SNPNE".to_string(), &all_raf_attributes);
 
+    log("Got institutional scores, new enrollee scores, and SNP new enrollee scores");
+
     // Normalize the scores
     let mut all_raf_scores = HashMap::<String, f32>::new();
     all_raf_scores.insert("SCORE_COMMUNITY_NA".to_string(), community_na_score * _public_inputs.norm_factor);
@@ -791,12 +791,15 @@ pub fn main() {
     all_raf_scores.insert("SCORE_NEW_ENROLLEE".to_string(), new_enrollee_score * _public_inputs.norm_factor);
     all_raf_scores.insert("SCORE_SNP_NEW_ENROLLEE".to_string(), snp_new_enrollee_score * _public_inputs.norm_factor);
 
+    log("Normalized scores, creating journal");
 
     // Calculate RAF score by summing the values for each HCC
     let journal = Journal {
         raf_scores: all_raf_scores,
         coefficients: HashMap::<String, f32>::new(),
     };
+
+    log("Created journal, committing to environment");
 
     env::commit(&journal);
 

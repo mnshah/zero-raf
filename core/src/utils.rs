@@ -141,7 +141,6 @@ pub fn build_ne_reg_variable_list() -> Vec<String> {
     for age_group in ge_65_age_segments {
         for left_perm in &left_permutations {
             for right_perm in &right_permutations {
-                println!("{}_{}_{}", left_perm, right_perm, age_group);
                 ne_reg_variables.push(format!("{}_{}_{}", left_perm, right_perm, age_group));
             }
         }
@@ -149,7 +148,6 @@ pub fn build_ne_reg_variable_list() -> Vec<String> {
 
     for age_group in le_65_age_segments {
         for left_perm in &left_permutations {
-            println!("{}_NORIGDS_{}", left_perm, age_group);
             ne_reg_variables.push(format!("{}_NORIGDS_{}", left_perm, age_group));
         }
     }
