@@ -2,7 +2,7 @@ use zero_raf_core::{PublicRAFInputs, PrivateRAFInput};
 use zero_raf_methods::{ZERO_RAF_ELF, ZERO_RAF_ID};
 use zero_raf_core::utils::{get_cms_data_dir, read_hcc_coefficients, read_hier, read_dx_to_cc, read_hcc_labels};
 use risc0_zkvm::serde::{to_vec};
-use risc0_zkvm::{Executor, ExecutorEnv, SessionReceipt};
+use risc0_zkvm::{Executor, ExecutorEnv, Session, Segment, SessionReceipt};
 use std::error::Error;
 use std::collections::HashMap;
 
@@ -68,40 +68,23 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("About to serialize private & public inputs");
 
-    let receipt: SessionReceipt = raf(&_private_input, &_public_inputs);
+    let session: Session = execute_raf_scoring(&_private_input, &_public_inputs);
 
-    println!("Receipt: {:?}", receipt);
+    println!("Number of segments in session: {}", session.segments.len());
 
-    receipt.verify(ZERO_RAF_ID).unwrap();
+    let segments: Vec<Segment> = session.resolve().unwrap();
 
-    // prover.add_input_u32_slice(&serde::to_vec(&private_input)?);
-
-    /*
-        Phase 3: Read in the diagnosis data for 1 or more patients to pass to the Guest code
-    */
-
-    /*
-        Phase 4: Pass the data to the Guest code
-    */
-
-    /*
-        Phase 5: Run the Guest code to output the RAF for each patient
-    */
-    // let receipt = prover.run()
-    //     .expect("Code should be provable unless it 1) had an error or 2) overflowed the cycle limit. See `embed_methods_with_options` for information on adjusting maximum cycle count.");
-
-    // Optional: Verify receipt to confirm that recipients will also be able to verify your receipt
-    receipt.verify(ZERO_RAF_ID).expect(
-        "Code you have proven should successfully verify; did you specify the correct method ID?",
-    );
-
-    println!("Success! Saved the receipt to ");
+    let total_cycles = segments.iter().fold(0, |acc, segment| acc + segment.insn_cycles);
+    for segment in &segments {
+        println!("Segment {} - insn_cycles: {}", segment.index, segment.insn_cycles);
+    }
+    println!("Total cycles: {}", total_cycles);
 
     // TODO: Implement code for transmitting or serializing the receipt for other parties to verify here
     Ok(())
 }
 
-fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> SessionReceipt {
+fn execute_raf_scoring(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> Session {
 
     // let mut prover =
     //     Prover::new(ZERO_RAF_ELF).expect("Prover should be constructed from valid ELF binary");
@@ -119,16 +102,31 @@ fn raf(private_inputs: &PrivateRAFInput, public_inputs: &PublicRAFInputs) -> Ses
     // Run the executor to produce a session.
     let session = exec.run().unwrap();
 
-    println!("Created session for the guest program.");
+    println!("Executed guest code. Returning session.");
 
-    // // Prove the session to produce a receipt.
-    println!("Running prover...");
+    return session;
+
+}
+
+fn prove_raf_scoring(session: Session) -> SessionReceipt {
+
+    // Prove the session to produce a receipt.
     let receipt = session.prove().unwrap();
 
-    // prover.add_input_u32_slice(&to_vec(public_inputs).unwrap());
-    // prover.add_input_u32_slice(&to_vec(private_inputs).unwrap());
-    // let receipt = prover.run().unwrap();
+    println!("Proved the session. Returning receipt.");
+
     return receipt;
+
+}
+
+fn verify_raf_scoring(receipt: SessionReceipt) {
+
+    // Optional: Verify receipt to confirm that recipients will also be able to verify your receipt
+    let verified = receipt.verify(ZERO_RAF_ID).expect(
+        "Code you have proven should successfully verify; did you specify the correct method ID?",
+    );
+
+    println!("Verified the receipt. Returning verification result.");
 
 }
 
