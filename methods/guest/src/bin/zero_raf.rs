@@ -3,29 +3,29 @@ use risc0_zkvm::guest::env::log;
 risc0_zkvm::guest::entry!(main);
 use zero_raf_core::utils::{build_ne_reg_variable_list};
 use zero_raf_core::{PublicRAFInputs, PrivateRAFInput, Journal};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::Once;
 
 
 
 // Define a Struct to capture the original RAF coefficient and whether the attribute is 
-// true for the patient. The struct will be used by a global HashMap to determine if the 
+// true for the patient. The struct will be used by a global BTreeMap to determine if the 
 // coefficient should be applied to the RAF score.
 pub struct RAFAttribute {
     pub coefficient: f32,
     pub is_true: bool,
 }
 
-// Create a global HashMap to store the RAF attributes. The HashMap will be initialized
+// Create a global BTreeMap to store the RAF attributes. The BTreeMap will be initialized
 // in the main function using the public HCC Coefficients and `is_true` set to false.
 // As the Guest code continues, applicable RAF attributes will be set to true.
-static mut GLOBAL_RAF_MAP: Option<HashMap<String, RAFAttribute>> = None;
+static mut GLOBAL_RAF_MAP: Option<BTreeMap<String, RAFAttribute>> = None;
 static INIT: Once = Once::new();
 
-fn _get_global_raf_map() -> &'static mut HashMap<String, RAFAttribute> {
+fn _get_global_raf_map() -> &'static mut BTreeMap<String, RAFAttribute> {
     unsafe {
         INIT.call_once(|| {
-            GLOBAL_RAF_MAP = Some(HashMap::new());
+            GLOBAL_RAF_MAP = Some(BTreeMap::new());
         });
         GLOBAL_RAF_MAP.as_mut().unwrap()
     }
@@ -71,7 +71,7 @@ fn _get_global_raf_map() -> &'static mut HashMap<String, RAFAttribute> {
 fn _age_sex_v2(age: i32, sex: &str, orec: &str) -> Vec<String> {
     
     // Define a map with keys associated with the different groupings based on AGE, SEX, and OREC
-    let mut age_sex_map = HashMap::<String, bool>::new();
+    let mut age_sex_map = BTreeMap::<String, bool>::new();
     // Enrollee keys: F0_34 F35_44 F45_54 F55_59 F60_64 F65_69 
     //                F70_74 F75_79 F80_84 F85_89 F90_94 F95_GT
     //                M0_34  M35_44 M45_54 M55_59 M60_64 M65_69
@@ -227,11 +227,11 @@ fn _age_sex_v2(age: i32, sex: &str, orec: &str) -> Vec<String> {
 //                 ARRAY C(&N_CC)   &CClist
 //                 ARRAY HCC(&N_CC) &HCClist
 //                -format ICD to CC creates only &N_CC CMS CCs
-fn _apply_hierarchy(model_hcc_hiers: &HashMap<String, Vec<String>>, patient_hcc_list: &Vec<String>) -> Vec<String> {
+fn _apply_hierarchy(model_hcc_hiers: &BTreeMap<String, Vec<String>>, patient_hcc_list: &Vec<String>) -> Vec<String> {
     // Create an initial index with the patient HCC list values mapped to true
 
     let mut superior_hccs: Vec<String> = vec![];
-    let mut inferior_hccs: HashMap<&String,bool> = HashMap::new();
+    let mut inferior_hccs: BTreeMap<&String,bool> = BTreeMap::new();
 
 
     for hcc in patient_hcc_list.iter() {
@@ -287,7 +287,7 @@ static KEYS_FOR_NUM_PAYMENT_HCCS : [&'static str; 10] = ["D0", "D1", "D2", "D3",
 fn _apply_interactions(patient_hcc_list : &Vec<String>, is_disabled : bool) -> Vec<String> {
 
     // Create a Counter object to capture all the interactions.
-    let mut interaction_counter = HashMap::<&str, &u32>::new();
+    let mut interaction_counter = BTreeMap::<&str, &u32>::new();
 
     // Iterate through patient_hcc_list and add to the interaction_counter
     for hcc in patient_hcc_list {
@@ -295,7 +295,7 @@ fn _apply_interactions(patient_hcc_list : &Vec<String>, is_disabled : bool) -> V
     }
 
     // Create a Counter object to hold the diagnostic categories
-    let mut diagnostic_counter = HashMap::<&str, &u32>::new();
+    let mut diagnostic_counter = BTreeMap::<&str, &u32>::new();
 
     match is_disabled {
         true => {
@@ -780,7 +780,7 @@ pub fn main() {
     log("Got institutional scores, new enrollee scores, and SNP new enrollee scores");
 
     // Normalize the scores
-    let mut all_raf_scores = HashMap::<String, f32>::new();
+    let mut all_raf_scores = BTreeMap::<String, f32>::new();
     all_raf_scores.insert("SCORE_COMMUNITY_NA".to_string(), community_na_score * _public_inputs.norm_factor);
     all_raf_scores.insert("SCORE_COMMUNITY_ND".to_string(), community_nd_score * _public_inputs.norm_factor);
     all_raf_scores.insert("SCORE_COMMUNITY_FBA".to_string(), community_fba_score * _public_inputs.norm_factor);
@@ -796,7 +796,7 @@ pub fn main() {
     // Calculate RAF score by summing the values for each HCC
     let journal = Journal {
         raf_scores: all_raf_scores,
-        coefficients: HashMap::<String, f32>::new(),
+        coefficients: BTreeMap::<String, f32>::new(),
     };
 
     log("Created journal, committing to environment");
@@ -827,7 +827,7 @@ fn can_apply_interactions() {
 
 #[test]
 fn can_apply_hierarchy() {
-    let mut hiers = HashMap::<String, Vec<String>>::new();
+    let mut hiers = BTreeMap::<String, Vec<String>>::new();
     hiers
         .entry("HCC154".to_string())
         .or_insert(vec!["HCC155".to_string()]);
@@ -910,7 +910,7 @@ fn can_generate_community_model_a_score() {
 
     let all_raf_attributes: Vec<String> = vec!["M75_79".to_string(), "NEM75_79".to_string(), "DIABETES_HF_V28".to_string(), "D3".to_string()];
 
-    let mut hcc_coefficients = HashMap::<String, f32>::new();
+    let mut hcc_coefficients = BTreeMap::<String, f32>::new();
     hcc_coefficients.insert("CNA_M75_79".to_string(), 0.50);
     hcc_coefficients.insert("CNA_NEM75_79".to_string(), 0.0);
     hcc_coefficients.insert("CNA_DIABETES_HF_V28".to_string(), 0.11);
@@ -921,7 +921,7 @@ fn can_generate_community_model_a_score() {
     hcc_coefficients.insert("CNA_HCC381".to_string(), 1.08);
     hcc_coefficients.insert("CNA_HCC382".to_string(), 0.84);       
 
-    let mut hcc_labels = HashMap::<String, String>::new(); 
+    let mut hcc_labels = BTreeMap::<String, String>::new(); 
     hcc_labels.insert("HCC1".to_string(), "HIV/AIDS".to_string());
     hcc_labels.insert("HCC2".to_string(), "Septicemia, Sepsis, Systemic Inflammatory Response Syndrome/Shock".to_string());
     hcc_labels.insert("HCC6".to_string(), "Opportunistic Infections".to_string());
@@ -938,12 +938,12 @@ fn can_generate_community_model_a_score() {
     hcc_labels.insert("HCC38".to_string(), "Diabetes with Glycemic, Unspecified, or No Complications ".to_string());
     hcc_labels.insert("HCC48".to_string(), "Morbid Obesity".to_string());
 
-    let mut hiers = HashMap::<String, Vec<String>>::new();
+    let mut hiers = BTreeMap::<String, Vec<String>>::new();
     hiers
         .entry("HCC154".to_string())
         .or_insert(vec!["HCC155".to_string()]);
 
-    let mut dx_to_cc = HashMap::<String, Vec<String>>::new();
+    let mut dx_to_cc = BTreeMap::<String, Vec<String>>::new();
     dx_to_cc
         .entry("B20".to_string())
         .or_insert(vec!["HCC1".to_string(), "HCC6".to_string()]);

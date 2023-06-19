@@ -4,7 +4,9 @@ use zero_raf_core::utils::{get_cms_data_dir, read_hcc_coefficients, read_hier, r
 use risc0_zkvm::serde::{to_vec};
 use risc0_zkvm::{Executor, ExecutorEnv, Session, Segment, SessionReceipt};
 use std::error::Error;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::{fs, path::PathBuf};
+use serde_json;
 
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -30,22 +32,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cms_dir = get_cms_data_dir("PY2023");
     let hcc_labels = match read_hcc_labels(&(cms_dir + "/V28115L3.txt")) {
         Ok(map) => map,
-        Err(_err) => HashMap::new(),
+        Err(_err) => BTreeMap::new(),
     };
 
     let hcc_hiers = match read_hier("./CMS-Data/PY2023/V28115H1.TXT") {
         Ok(map) => map,
-        Err(_err) => HashMap::new(),
+        Err(_err) => BTreeMap::new(),
     };
 
     let hcc_coeffs = match read_hcc_coefficients("./CMS-Data/PY2023/C2824T2N.csv") {
         Ok(map) => map,
-        Err(_err) => HashMap::new(),
+        Err(_err) => BTreeMap::new(),
     };
 
     let dx_to_cc = match read_dx_to_cc("./CMS-Data/PY2023/F2823T2N_FY22FY23.TXT") {
         Ok(map) => map,
-        Err(_err) => HashMap::new(),
+        Err(_err) => BTreeMap::new(),
     };
 
     let _public_inputs = PublicRAFInputs {
@@ -79,6 +81,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Segment {} - insn_cycles: {}", segment.index, segment.insn_cycles);
     }
     println!("Total cycles: {}", total_cycles);
+
+    let receipt: SessionReceipt = prove_raf_scoring(session);
+    verify_raf_scoring(receipt);
 
     // TODO: Implement code for transmitting or serializing the receipt for other parties to verify here
     Ok(())
@@ -114,6 +119,11 @@ fn prove_raf_scoring(session: Session) -> SessionReceipt {
     let receipt = session.prove().unwrap();
 
     println!("Proved the session. Returning receipt.");
+
+    let output_path = PathBuf::from("./zero-raf-receipt.txt");
+    
+    let receipt_json = serde_json::to_string(&receipt).unwrap();
+    fs::write(output_path, receipt_json.to_string()).expect("Unable to write file");
 
     return receipt;
 

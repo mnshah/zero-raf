@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::env;
@@ -23,9 +23,9 @@ pub fn get_cms_data_dir(performance_year: &str) -> String {
 /*
     Reads in label file and returns a dictionary of HCC to label
 */
-pub fn read_hcc_labels(filename: &str) -> Result<HashMap<String, String>, csv::Error> {
+pub fn read_hcc_labels(filename: &str) -> Result<BTreeMap<String, String>, csv::Error> {
 
-    let mut labels = HashMap::new();
+    let mut labels = BTreeMap::new();
     let file = File::open(filename)?;
     let reader = BufReader::new(file);
     let re = Regex::new(r#"\s*((?:HCC|CC)\d+)\s*=\s*"([^"]+)"#).unwrap();
@@ -43,9 +43,9 @@ pub fn read_hcc_labels(filename: &str) -> Result<HashMap<String, String>, csv::E
     Ok(labels)
 }
 
-pub fn read_hier(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> {
+pub fn read_hier(filename: &str) -> Result<BTreeMap<String, Vec<String>>, csv::Error> {
 
-    let mut hiers = HashMap::new();
+    let mut hiers = BTreeMap::new();
     let pttr = Regex::new(r"%SET0\(CC=(\d+).+%STR\((.+)\)\)").unwrap();
     let file = File::open(filename)?;
     let reader = BufReader::new(file);
@@ -67,11 +67,11 @@ pub fn read_hier(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Er
 /*
     Reads in a CSV file and returns a dictionary of HCC conditions to decimal coefficients
 */
-pub fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv::Error> {
+pub fn read_hcc_coefficients(filename: &str) -> Result<BTreeMap<String, f32>, csv::Error> {
 
     let file = File::open(filename)?;
     let mut reader = BufReader::new(file);
-    let mut map = HashMap::new();
+    let mut map = BTreeMap::new();
     let mut headers = String::new();
     reader.read_line(&mut headers);
     let mut values = String::new();
@@ -86,7 +86,7 @@ pub fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv
     // Assert headers and values are the same length
     assert_eq!(headers.len(), values.len());
 
-    // Iterate through headers and values and insert into HashMap
+    // Iterate through headers and values and insert into BTreeMap
     for i in 0..headers.len() {
 
         let mut key = headers[i].trim().to_string();
@@ -101,14 +101,14 @@ pub fn read_hcc_coefficients(filename: &str) -> Result<HashMap<String, f32>, csv
     Reads in a CSV file and returns a dictionary of diagnosis codes to a list of 
     HCCs (hierarchical condition categories)
 */
-pub fn read_dx_to_cc(filename: &str) -> Result<HashMap<String, Vec<String>>, csv::Error> {
+pub fn read_dx_to_cc(filename: &str) -> Result<BTreeMap<String, Vec<String>>, csv::Error> {
 
     let file = File::open(filename)?;
     let mut reader = ReaderBuilder::new()
         .has_headers(false)
         .delimiter(b'\t')
         .from_reader(BufReader::new(file));
-    let mut map = HashMap::<String, Vec<String>>::new();
+    let mut map = BTreeMap::<String, Vec<String>>::new();
     for result in reader.records() {
         let record = result?;
         let dx = &mut record[0].to_string();

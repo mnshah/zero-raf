@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap};
+use std::{collections::BTreeMap};
 
 pub mod utils;
 
@@ -7,16 +7,16 @@ pub mod utils;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PublicRAFInputs {
     // Coefficients published by CMS for each model HCC
-    pub hcc_coefficients: HashMap<String, f32>,
+    pub hcc_coefficients: BTreeMap<String, f32>,
 
     // Hierarchies of HCC superiority published by CMS
-    pub hcc_hierarchies: HashMap<String, Vec<String>>,
+    pub hcc_hierarchies: BTreeMap<String, Vec<String>>,
 
     // Description labels for each HCC published by CMS
-    pub hcc_labels: HashMap<String, String>,
+    pub hcc_labels: BTreeMap<String, String>,
 
     // Mapping of ICD-10 codes to HCCs published by CMS
-    pub dx_to_cc: HashMap<String, Vec<String>>,
+    pub dx_to_cc: BTreeMap<String, Vec<String>>,
 
     // Normalization factor
     pub norm_factor: f32,
@@ -50,6 +50,6 @@ pub struct PrivateRAFInput {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Journal {
-    pub raf_scores: HashMap<String, f32>,
-    pub coefficients: HashMap<String, f32>,
+    pub raf_scores: BTreeMap<String, f32>,
+    pub coefficients: BTreeMap<String, f32>,
 }
